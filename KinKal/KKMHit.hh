@@ -6,6 +6,7 @@
 #include "KinKal/KKHit.hh"
 #include "KinKal/KKMat.hh"
 #include "KinKal/KKEff.hh"
+#include <stdexcept>
 namespace KinKal {
   template <class KTRAJ> class KKMHit : public KKEff<KTRAJ> {
     public:
@@ -36,20 +37,22 @@ namespace KinKal {
     kkmat_(*thit.material(),kkhit_.poca(),thit.isActive()) {}
 
   template <class KTRAJ> bool KKMHit<KTRAJ>::process(KKDATA& kkdata,TDir tdir) {
-    // process the effect with the valid cache first; this minimizes the number of matrix inversions
+    // process in a fixed order to make material caching work
     bool retval(true);
-    if(kkdata.hasPData()){
+    bool hitfirst = (tdir == TDir::forwards && kkhit_.time() < kkmat_.time()) ||
+      (tdir == TDir::backwards && kkhit_.time() > kkmat_.time());
+    if(hitfirst) {
+	retval &= kkhit_.process(kkdata,tdir);
+	retval &= kkmat_.process(kkdata,tdir);
+    } else { 
       retval &= kkmat_.process(kkdata,tdir);
       retval &= kkhit_.process(kkdata,tdir);
-    } else {
-      retval &= kkhit_.process(kkdata,tdir);
-      retval &= kkmat_.process(kkdata,tdir);
     }
     return retval;
   }
 
   template <class KTRAJ> bool KKMHit<KTRAJ>::update(PKTRAJ const& ref) {
-  // update the hit first, then use the POCA from that to update the material
+    // update the hit first, then use the POCA from that to update the material
     bool retval(true);
     retval &= kkhit_.update(ref);
     retval &= kkmat_.update(kkhit_.poca());
