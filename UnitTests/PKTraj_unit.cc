@@ -1,4 +1,4 @@
-// 
+
 // test basic functions of the PKTraj, using the LHelix class
 //
 #include "KinKal/PKTraj.hh"
