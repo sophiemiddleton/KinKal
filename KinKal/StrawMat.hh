@@ -13,7 +13,7 @@ namespace KinKal {
     public:
     // explicit constructor from geometry and materials
       StrawMat(float rad, float thick, float rwire,
-	  DetMaterial const& wallmat, DetMaterial const& gasmat, DetMaterial const& wiremat) :
+	  MatEnv::DetMaterial const& wallmat, MatEnv::DetMaterial const& gasmat, MatEnv::DetMaterial const& wiremat) :
 	rad_(rad), thick_(thick), rwire_(rwire), wallmat_(wallmat), gasmat_(gasmat), wiremat_(wiremat) { 
 	  rad2_ = rad_*rad_;
 	  rdmax_ = (rad_ - thick_)/rad_;
@@ -21,16 +21,14 @@ namespace KinKal {
 	  ddmax_ = 0.05*rad_;
 	}
 	// DMat interface; first, for materials associated with a hit
-      virtual void intersect(TPocaBase const& poca,std::vector<MIsect>& misects) const override;
-      // then in general
-//      template <class KTRAJ> void intersect(KTRAJ const& ktraj, std::vector<MIsect>& misects) const override;
+      virtual void findXings(TPocaBase const& poca,std::vector<MatXing>& mxings) const override;
       // pathlength through gas, give DOCA to the axis, uncertainty on that,
       // and the dot product of the path direction WRT the axis.
       float gasPath(float doca, float ddoca, float adot) const;
       // same for wall material
-      float wallPath(float doca, float ddoca, float adot) const; 
-      // add up the material effects for a given doca.
-      void intersect(float doca, float ddoca, float adot, std::vector<MIsect>& misects) const;
+      float wallPath(float doca, float ddoca, float adot) const;  // should add doca to the wire for wire material effects FIXME!
+      // find the material crossings given doca.
+      void findXings(float doca, float ddoca, float adot, std::vector<MatXing>& mxings) const;
       float strawRadius() const { return rad_; }
       float wallThickness() const { return thick_; }
       float wireRadius() const { return rwire_; }
@@ -42,9 +40,9 @@ namespace KinKal {
       float ddmax_; // max ddoca to integrate
       float thick_; // wall thickness
       float rwire_; // transverse radius of the wire
-      DetMaterial const& wallmat_; // material of the straw wall
-      DetMaterial const& gasmat_; // material of the straw gas
-      DetMaterial const& wiremat_; // material of the wire
+      MatEnv::DetMaterial const& wallmat_; // material of the straw wall
+      MatEnv::DetMaterial const& gasmat_; // material of the straw gas
+      MatEnv::DetMaterial const& wiremat_; // material of the wire
   };
 }
 #endif

@@ -1,4 +1,4 @@
-//
+
 // ToyMC test of fitting an Line-based KKTrk
 //
 //kinKal:
@@ -10,10 +10,8 @@
 #include "KinKal/TPoca.hh"
 #include "KinKal/StrawHit.hh"
 #include "KinKal/StrawMat.hh"
-#include "KinKal/Context.hh"
 #include "KinKal/Vectors.hh"
 #include "KinKal/KKHit.hh"
-#include "KinKal/KTMIsect.hh"
 #include "KinKal/KKTrk.hh"
 #include "CLHEP/Units/PhysicalConstants.h"
 
@@ -47,6 +45,7 @@
 #include "TProfile2D.h"
 #include "Math/VectorUtil.h"
 
+using namespace MatEnv;
 using namespace KinKal;
 using namespace std;
 // avoid confusion with root
@@ -62,16 +61,18 @@ double tbuff(0.1);
 int iseed(124223);
 unsigned nhits(40);
 double escale(5.0);
-vector<double> sigmas = { 3.0, 3.0, 3.0, 3.0, 0.03, 3.0}; // base sigmas for parameters (per hit!)
-// define the context
-UniformBField BF(1.0); // 1 Tesla
-Context context(BF);
+vector<double> sigmas = { 3.0, 3.0, 3.0, 3.0, 0.1, 3.0}; // base sigmas for parameters (per hit!)
+// define the BF
+Vec3 bnom(0.0,0.0,1.0);
+double Bgrad(0.0), By(0.0);
+BField* BF(0);
 TRandom* TR = new TRandom3(iseed);
 CVD2T d2t(sdrift,sigt*sigt);
 
 void print_usage() {
-  printf("Usage: FitTest  --momentum f --costheta f --azimuth f --particle i --charge i --zrange f --nhits i --hres f --seed i --escale f --maxniter f --ambigdoca f --ntries i --addmat i\n");
+  printf("Usage: FitTest  --momentum f --costheta f --azimuth f --particle i --charge i --zrange f --nhits i --hres f --seed i --escale f --maxniter f --ambigdoca f --ntries i --addmat i --ttree i --By f --Bgrad f\n");
 }
+
 
 struct LinePars{
   Float_t pars_[5];
@@ -83,7 +84,7 @@ struct LinePars{
 
 //NOTES: this function can probably be adapted 
 // helper function
-KinKal::TLine GenerateStraw(TLine const& traj, double htime) { //TODO - does TLine work here
+KinKal::TLine GenerateStraw(PLHelix const& traj, double htime) {
   // start with the true helix position at this time
   Vec4 hpos; hpos.SetE(htime);
   traj.position(hpos);
@@ -119,7 +120,7 @@ KinKal::TLine GenerateStraw(TLine const& traj, double htime) { //TODO - does TLi
   return TLine(mpos,vprop,tmeas,trange);
 }
 
-void createSeed(LHelix& seed){
+void createSeed(KTLine & seed){
   auto& seedpar = seed.params();
   seedpar.covariance() = ROOT::Math::SMatrixIdentity();
   for(unsigned ipar=0;ipar < 6; ipar++){
@@ -129,7 +130,7 @@ void createSeed(LHelix& seed){
   }
 }
 
-void createHits(PLHelix& plhel,StrawMat const& smat, std::vector<StrawHit>& shits,bool addmat) {
+double createHits(PLHelix& plhel,StrawMat const& smat, std::vector<StrawHit>& shits,bool addmat) {
   //  cout << "Creating " << nhits << " hits " << endl;
   // divide time range
   double dt = (plhel.range().range()-2*tbuff)/(nhits-1);
@@ -142,52 +143,65 @@ void createHits(PLHelix& plhel,StrawMat const& smat, std::vector<StrawHit>& shit
     WireHit::LRAmbig ambig(WireHit::null);
     if(fabs(tp.doca())> ambigdoca) ambig = tp.doca() < 0 ? WireHit::left : WireHit::right;
     // construct the hit from this trajectory
-    StrawHit sh(tline,context,d2t,smat,ambigdoca,ambig);
+    StrawHit sh(tline,*BF,d2t,smat,ambigdoca,ambig);
     shits.push_back(sh);
     // compute material effects and change trajectory accordingly
     bool simmat(true);
     if(addmat && simmat){
-      std::vector<MIsect> misects;
-      smat.intersect(tp,misects);
+      std::vector<MatXing> mxings;
+      smat.findXings(tp,mxings);
       auto const& endpiece = plhel.nearestPiece(tp.t0());
-      KTMIsect<LHelix> ktmi(endpiece,tp.t0(),misects);
+      KKXing<LHelix> ktmi(endpiece,tp.t0(),mxings);
       double mom = endpiece.momentum(tp.t0());
       Mom4 endmom;
       endpiece.momentum(tp.t0(),endmom);
       Vec4 endpos; endpos.SetE(tp.t0());
       endpiece.position(endpos);
+      std::array<double,3> dmom = {0.0,0.0,0.0}, momvar {0.0,0.0,0.0};
+      ktmi.momEffects(TDir::forwards, dmom, momvar);
       for(int idir=0;idir<=KInter::theta2; idir++) {
 	auto mdir = static_cast<KInter::MDir>(idir);
-	double dmom, momvar, dm;
-	ktmi.momEffect(TDir::forwards, mdir, dmom, momvar);
+	double momsig = sqrt(momvar[idir]);
+	double dm;
+//	double land;
 	// generate a random effect given this variance and mean.  Note momEffect is scaled to momentum
 	switch( mdir ) {
 	  case KinKal::KInter::theta1: case KinKal::KInter::theta2 :
-	    dm = TR->Gaus(dmom,sqrt(momvar));
+	    dm = TR->Gaus(dmom[idir],momsig);
 	    dscatsum += dm;
 	    break;
 	  case KinKal::KInter::momdir :
-//	    dm = -TR->Landau(-dmom,sqrt(momvar)); // have to flip sign for root!
-	    dm = dmom;
+	    // truncated Landau for the energy loss
+//	    land = 1e5;
+//	    while(land > fabs(momsig/dmom))
+//	      land = TR->Landau(1.0,0.1); // can't use variance
+//	    dm = std::min(0.0,dmom*land/1.25);
+//	    dm = std::min(0.0,TR->Gaus(dmom,momsig));
+	    dm = std::min(0.0,TR->Gaus(dmom[idir],momsig));
+//	    dm = dmom;
 	    desum += dm*mom;
 	    break;
 	  default:
 	    throw std::invalid_argument("Invalid direction");
 	}
-//	cout << "direction " << mdir << " doca " << tp.doca() << " dmom " << dmom << " +- " << sqrt(momvar) << " sample " << dm  << endl;
+//	cout << "mom change dir " << KInter::directionName(mdir) << " mean " << dmom[idir]  << " +- " << momsig << " value " << dm  << endl;
+
 	Vec3 dmvec;
 	endpiece.dirVector(mdir,tp.t0(),dmvec);
 	dmvec *= dm*mom;
 //	dmvec *= 0.0;
 	endmom.SetCoordinates(endmom.Px()+dmvec.X(), endmom.Py()+dmvec.Y(), endmom.Pz()+dmvec.Z(),endmom.M());
       }
+	// terminate if there is catastrophic energy loss
+      if(fabs(desum)/mom > 0.1)break;
       // generate a new piece and append
-      LHelix newend(endpos,endmom,endpiece.charge(),context,TRange(tp.t0(),plhel.range().high()));
+      LHelix newend(endpos,endmom,endpiece.charge(),bnom,TRange(tp.t0(),plhel.range().high()));
       if(!plhel.append(newend))
 	cout << "Error appending traj " << newend << endl;
     }
   }
 //  cout << "Total energy loss " << desum << " scattering " << dscatsum << endl;
+  return desum;
 }
 
 int main(int argc, char **argv) {
@@ -203,6 +217,7 @@ int main(int argc, char **argv) {
   unsigned ntries(1000);
   double mindchisq(0.1);
   bool addmat(true);
+  bool ttree(true);
 
   static struct option long_options[] = {
     {"momentum",     required_argument, 0, 'm' },
@@ -220,6 +235,9 @@ int main(int argc, char **argv) {
     {"ambigdoca",     required_argument, 0, 'd'  },
     {"ntries",     required_argument, 0, 't'  },
     {"mindchisq",     required_argument, 0, 'i'  },
+    {"ttree",     required_argument, 0, 'r'  },
+    {"By",     required_argument, 0, 'y'  },
+    {"Bgrad",     required_argument, 0, 'g'  },
   };
 
   int long_index =0;
@@ -250,15 +268,31 @@ int main(int argc, char **argv) {
 		 break;
       case 'b' : addmat = atoi(optarg);
 		 break;
+      case 'r' : ttree = atoi(optarg);
+		 break;
       case 'd' : ambigdoca = atof(optarg);
 		 break;
       case 't' : ntries = atoi(optarg);
 		 break;
       case 'i' : mindchisq= atof(optarg);
 		 break;
+      case 'y' : By = atof(optarg);
+		 break;
+      case 'g' : Bgrad = atof(optarg);
+		 break;
       default: print_usage();
 	       exit(EXIT_FAILURE);
     }
+  }
+  // construct BField
+  if(Bgrad != 0){
+    BF = new GradBField(1.0-0.5*zrange*Bgrad,1.0+0.5*zrange*Bgrad,-0.5*zrange,0.5*zrange);
+    Vec3 bn;
+    BF->fieldVect(bn,Vec3(0.0,0.0,0.0));
+    bnom = bn;
+  } else {
+    bnom = Vec3(0.0,By,1.0);
+    BF = new UniformBField(bnom);
   }
 
   MatDBInfo matdbinfo;
@@ -272,7 +306,9 @@ int main(int argc, char **argv) {
   Vec4 origin(0.0,0.0,0.0,0.0);
   float sint = sqrt(1.0-cost*cost);
   Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass);
-  LHelix lhel(origin,momv,icharge,context);
+
+  LHelix lhel(origin,momv,icharge,bnom); //TODO
+
   cout << "True initial " << lhel << endl;
   PLHelix plhel(lhel);
   // truncate the range according to the Z range
@@ -302,7 +338,7 @@ int main(int argc, char **argv) {
   config.mindchisq_ = mindchisq;
   config.maxniter_ = maxniter;
   config.addmat_ = addmat;
-  KKTRK kktrk(seedhel,thits,config);
+  KKTRK kktrk(seedhel,*BF,thits,config);
   // fit the track
   kktrk.fit();
   cout << "KKTrk " << kktrk.status() << endl;
@@ -320,8 +356,9 @@ int main(int argc, char **argv) {
 //  }
   TFile fitfile("FitTest.root","RECREATE");
   // tree variables
-  LHelixPars tfpars_, tepars_, fseedpars_, ffitpars_, ffiterrs_, efitpars_, efiterrs_;
-  float chisq_, temom_, tfmom_, ffitmom_, efitmom_;
+  LHelixPars ftpars_, etpars_, spars_, ffitpars_, ffiterrs_, efitpars_, efiterrs_; //TODO
+  float chisq_, etmom_, ftmom_, ffmom_, efmom_, tde_, chiprob_;
+  float fft_,eft_;
   int ndof_, niter_;
   if(ntries <=0 ){
   // draw the fit result
@@ -365,25 +402,33 @@ int main(int argc, char **argv) {
     pttcan->Write();
 
   } else {
-    TTree* ftree = new TTree("FitTree","FitTree");
-    ftree->Branch("tfpars.", &tfpars_,LHelixPars::leafnames().c_str());
-    ftree->Branch("tepars.", &tepars_,LHelixPars::leafnames().c_str());
-    ftree->Branch("fseedpars.", &fseedpars_,LHelixPars::leafnames().c_str());
-    ftree->Branch("ffitpars.", &ffitpars_,LHelixPars::leafnames().c_str());
-    ftree->Branch("ffiterrs.", &ffiterrs_,LHelixPars::leafnames().c_str());
-    ftree->Branch("efitpars.", &efitpars_,LHelixPars::leafnames().c_str());
-    ftree->Branch("efiterrs.", &efiterrs_,LHelixPars::leafnames().c_str());
-    ftree->Branch("chisq", &chisq_,"chisq/F");
-    ftree->Branch("ndof", &ndof_,"ndof/I");
-    ftree->Branch("niter", &niter_,"niter/I");
-    ftree->Branch("tfmom", &tfmom_,"tfmom/F");
-    ftree->Branch("temom", &temom_,"temom/F");
-    ftree->Branch("ffitmom", &ffitmom_,"ffitmom/F");
-    ftree->Branch("efitmom", &efitmom_,"efitmom/F");
+    TTree* ftree(0);
+    if(ttree){
+      ftree = new TTree("FitTree","FitTree");
+      ftree->Branch("ftpars.", &ftpars_,LinePars::leafnames().c_str());
+      ftree->Branch("etpars.", &etpars_,LinePars::leafnames().c_str());
+      ftree->Branch("spars.", &spars_,LinePars::leafnames().c_str());
+      ftree->Branch("ffpars.", &ffitpars_,LinePars::leafnames().c_str());
+      ftree->Branch("fferrs.", &ffiterrs_,LinePars::leafnames().c_str());
+      ftree->Branch("efpars.", &efitpars_,LinePars::leafnames().c_str());
+      ftree->Branch("eferrs.", &efiterrs_,LinePars::leafnames().c_str());
+      ftree->Branch("chisq", &chisq_,"chisq/F");
+      ftree->Branch("ndof", &ndof_,"ndof/I");
+      ftree->Branch("chiprob", &chiprob_,"chiprob/F");
+      ftree->Branch("niter", &niter_,"niter/I");
+      ftree->Branch("ftmom", &ftmom_,"ftmom/F");
+      ftree->Branch("etmom", &etmom_,"etmom/F");
+      ftree->Branch("ffmom", &ffmom_,"ffmom/F");
+      ftree->Branch("efmom", &efmom_,"efmom/F");
+      ftree->Branch("fft", &fft_,"fft/F");
+      ftree->Branch("eft", &eft_,"eft/F");
+      ftree->Branch("tde", &tde_,"tde/F");
+    }
     // now repeat this to gain statistics
-    vector<TH1F*> dpgenh(LHelix::NParams());
-    vector<TH1F*> dpullgenh(LHelix::NParams());
-    vector<TH1F*> fiterrh(LHelix::NParams());
+    vector<TH1F*> dpgenh(TLine::NParams());
+    vector<TH1F*> fdpullgenh(TLine::NParams());
+    vector<TH1F*> bdpullgenh(TLine::NParams());
+    vector<TH1F*> fiterrh(TLine::NParams());
     TH1F* niter = new TH1F("niter", "N Iterations", 100,0,100);
     TH1F* ndof = new TH1F("ndof", "N Degree of Freedom", 100,0,100);
     TH1F* chisq = new TH1F("chisq", "Chisquared", 100,0,100);
@@ -403,7 +448,8 @@ int main(int argc, char **argv) {
       dpgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-pscale*sigmas[ipar],pscale*sigmas[ipar]);
       hname = string("p") + LHelix::paramName(tpar);
       htitle = string("Pull ") + LHelix::paramTitle(tpar);
-      dpullgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-nsig,nsig);
+      fdpullgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-nsig,nsig);
+      bdpullgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-nsig,nsig);
       hname = string("e") + LHelix::paramName(tpar);
       htitle = string("Error ") + LHelix::paramTitle(tpar);
       fiterrh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,0.0,pscale*sigmas[ipar]);
@@ -417,27 +463,32 @@ int main(int argc, char **argv) {
       double tcost = TR->Uniform(0.5,0.8);
       double tsint = sqrt(1.0-tcost*tcost);
       Mom4 tmomv(mom*tsint*cos(tphi),mom*tsint*sin(tphi),mom*tcost,pmass);
-      LHelix tlhel(torigin,tmomv,icharge,context);
+      LHelix tlhel(torigin,tmomv,icharge,bnom);
       PLHelix tplhel(tlhel);
       Vec3 vel; tplhel.velocity(0.0,vel);
       tplhel.setRange(TRange(-0.5*zrange/vel.Z()-tbuff,0.5*zrange/vel.Z()+tbuff));
       shits.clear();
-      createHits(tplhel,smat, shits,addmat);
+      tde_ = createHits(tplhel,smat, shits,addmat);
       auto seedhel = tplhel.nearestPiece(0.0);
       createSeed(seedhel);
       thits.clear();
       for(auto& shit : shits) thits.push_back(&shit);
-      KKTRK kktrk(seedhel,thits,config);
+      KKTRK kktrk(seedhel,*BF,thits,config);
       kktrk.fit();
       // compare parameters at the first traj of both true and fit
       auto const& tpars = tplhel.front().params();
       auto const& fpars = kktrk.fitTraj().front().params();
+      auto const& btpars = tplhel.back().params();
+      auto const& bfpars = kktrk.fitTraj().back().params();
+     // momentum
       // accumulate parameter difference and pull
-      vector<double> cerr(6,0.0);
+      vector<double> cerr(6,0.0), bcerr(6,0.0);
       for(size_t ipar=0;ipar< LHelix::NParams(); ipar++){
 	cerr[ipar] = sqrt(fpars.covariance()[ipar][ipar]);
+	bcerr[ipar] = sqrt(bfpars.covariance()[ipar][ipar]);
 	dpgenh[ipar]->Fill(fpars.parameters()[ipar]-tpars.parameters()[ipar]);
-	dpullgenh[ipar]->Fill((fpars.parameters()[ipar]-tpars.parameters()[ipar])/cerr[ipar]);
+	fdpullgenh[ipar]->Fill((fpars.parameters()[ipar]-tpars.parameters()[ipar])/cerr[ipar]);
+	bdpullgenh[ipar]->Fill((bfpars.parameters()[ipar]-btpars.parameters()[ipar])/bcerr[ipar]);
 	fiterrh[ipar]->Fill(cerr[ipar]);
       }
       // accumulate average correlation matrix
@@ -451,31 +502,56 @@ int main(int argc, char **argv) {
 	}
       }
       // accumulate chisquared info
-      double chiprob = TMath::Prob(kktrk.status().chisq_,kktrk.status().ndof_);
+      chiprob_ = TMath::Prob(kktrk.status().chisq_,kktrk.status().ndof_);
       niter->Fill(kktrk.status().niter_);
       ndof->Fill(kktrk.status().ndof_);
       chisq->Fill(kktrk.status().chisq_);
       chisqndof->Fill(kktrk.status().chisq_/kktrk.status().ndof_);
-      chisqprob->Fill(chiprob);
-      logchisqprob->Fill(log10(chiprob));
+      chisqprob->Fill(chiprob_);
+      logchisqprob->Fill(log10(chiprob_));
       // fill tree
       for(size_t ipar=0;ipar<6;ipar++){
-	fseedpars_.pars_[ipar] = seedhel.params().parameters()[ipar];
-	tfpars_.pars_[ipar] = tplhel.front().params().parameters()[ipar];
-	tepars_.pars_[ipar] = tplhel.back().params().parameters()[ipar];
+	spars_.pars_[ipar] = seedhel.params().parameters()[ipar];
+	ftpars_.pars_[ipar] = tplhel.front().params().parameters()[ipar];
+	etpars_.pars_[ipar] = tplhel.back().params().parameters()[ipar];
 	ffitpars_.pars_[ipar] = kktrk.fitTraj().front().params().parameters()[ipar];
 	efitpars_.pars_[ipar] = kktrk.fitTraj().back().params().parameters()[ipar];
 	ffiterrs_.pars_[ipar] = sqrt(kktrk.fitTraj().front().params().covariance()(ipar,ipar));
 	efiterrs_.pars_[ipar] = sqrt(kktrk.fitTraj().back().params().covariance()(ipar,ipar));
       }
-      tfmom_ = tplhel.front().momentum(tplhel.range().low());
-      temom_ = tplhel.back().momentum(tplhel.range().high());
-      ffitmom_ = kktrk.fitTraj().front().momentum(tplhel.range().low());
-      efitmom_ = kktrk.fitTraj().back().momentum(tplhel.range().high());
+      ftmom_ = tplhel.front().momentum(tplhel.range().low());
+      etmom_ = tplhel.back().momentum(tplhel.range().high());
+      ffmom_ = kktrk.fitTraj().front().momentum(kktrk.fitTraj().range().low());
+      efmom_ = kktrk.fitTraj().back().momentum(kktrk.fitTraj().range().high());
+      fft_ = kktrk.fitTraj().range().low();
+      eft_ = kktrk.fitTraj().range().high();
       chisq_ = kktrk.status().chisq_;
       ndof_ = kktrk.status().ndof_;
       niter_ = kktrk.status().niter_;
-      ftree->Fill();
+
+      // test
+      if(efmom_-etmom_ >1.0){
+	cout << "Poor End " << kktrk.fitTraj() << endl;
+	auto const& effs = kktrk.effects();
+	for(auto const& eff : effs) {
+	  cout << "Eff at time " << eff->time() << " status " << eff->status(TDir::forwards)  << " " << eff->status(TDir::backwards);
+	  auto ihit = dynamic_cast<const KKHit<LHelix>*>(eff.get());
+	  auto imhit = dynamic_cast<const KKMHit<LHelix>*>(eff.get());
+	  auto end = dynamic_cast<const KKEnd<LHelix>*>(eff.get());
+	  if(end != 0) {
+	    cout << "End direction " << end->tDir() << " time " << end->time() << endl;
+	  }else if(ihit != 0){
+	    cout << " Hit status " << ihit->poca().status() << " doca " << ihit->poca().doca() << ihit->refResid() << endl;
+	  } else if(imhit != 0){
+	    cout << " Hit status " << imhit->hit().poca().status() << " doca " << imhit->hit().poca().doca() << imhit->hit().refResid() << endl;
+	    cout << " Mat forward status " << imhit->mat().status(TDir::forwards) 
+	      << " backwards status " << imhit->mat().status(TDir::backwards) <<  " effect " << imhit->mat().effect().parameters() << endl;
+	  } else
+	    cout << endl;
+	}
+      }
+
+      if(ttree)ftree->Fill();
     }
     // fill canvases
     TCanvas* dpcan = new TCanvas("dpcan","dpcan",800,600);
@@ -485,13 +561,22 @@ int main(int argc, char **argv) {
       dpgenh[ipar]->Fit("gaus");
     }
     dpcan->Write();
-    TCanvas* pullcan = new TCanvas("pullcan","pullcan",800,600);
-    pullcan->Divide(3,2);
+
+    TCanvas* fpullcan = new TCanvas("fpullcan","fpullcan",800,600);
+    fpullcan->Divide(3,2);
     for(size_t ipar=0;ipar<LHelix::NParams();++ipar){
-      pullcan->cd(ipar+1);
-      dpullgenh[ipar]->Fit("gaus");
+      fpullcan->cd(ipar+1);
+      fdpullgenh[ipar]->Fit("gaus");
     }
-    pullcan->Write();
+    fpullcan->Write();
+    TCanvas* bpullcan = new TCanvas("bpullcan","bpullcan",800,600);
+    bpullcan->Divide(3,2);
+    for(size_t ipar=0;ipar<LHelix::NParams();++ipar){
+      bpullcan->cd(ipar+1);
+      bdpullgenh[ipar]->Fit("gaus");
+
+    }
+    bpullcan->Write();
     TCanvas* perrcan = new TCanvas("perrcan","perrcan",800,600);
     perrcan->Divide(3,2);
     for(size_t ipar=0;ipar<LHelix::NParams();++ipar){

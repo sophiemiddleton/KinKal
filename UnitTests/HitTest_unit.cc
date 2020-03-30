@@ -9,7 +9,7 @@
 #include "KinKal/TPoca.hh"
 #include "KinKal/StrawHit.hh"
 #include "KinKal/StrawMat.hh"
-#include "KinKal/Context.hh"
+#include "KinKal/BField.hh"
 #include "KinKal/Vectors.hh"
 #include "KinKal/KKHit.hh"
 #include "CLHEP/Units/PhysicalConstants.h"
@@ -34,11 +34,11 @@
 #include "TGraph.h"
 #include "TRandom3.h"
 #include "TH2F.h"
-#include "TF1.h"
 #include "TDirectory.h"
 #include "TProfile.h"
 #include "TProfile2D.h"
 
+using namespace MatEnv;
 using namespace KinKal;
 using namespace std;
 // avoid confusion with root
@@ -51,7 +51,7 @@ double sprop(0.8*CLHEP::c_light), sdrift(0.065), rstraw(2.5);
 double sigt(3); // drift time resolution in ns
 
 void print_usage() {
-  printf("Usage: FitTest  --momentum f --costheta f --azimuth f --particle i --charge i --zrange f --nhits i --hres f --seed i --ambigdoca f --ddoca f\n");
+  printf("Usage: FitTest  --momentum f --costheta f --azimuth f --particle i --charge i --zrange f --nhits i --hres f --seed i --ambigdoca f --ddoca f --By f --Bgrad f\n");
 }
 
 // helper function
@@ -104,6 +104,7 @@ int main(int argc, char **argv) {
   float rwire(0.025), wthick(0.015);
   float ddoca(0.1);
   float scatfrac(0.995);
+  double Bgrad(0.0), By(0.0);
 
   static struct option long_options[] = {
     {"momentum",     required_argument, 0, 'm' },
@@ -117,6 +118,8 @@ int main(int argc, char **argv) {
     {"nhits",     required_argument, 0, 'n'  },
     {"ambigdoca",     required_argument, 0, 'd'  },
     {"ddoca",     required_argument, 0, 'x'  },
+    {"By",     required_argument, 0, 'y'  },
+    {"Bgrad",     required_argument, 0, 'g'  },
   };
 
   int long_index =0;
@@ -146,6 +149,10 @@ int main(int argc, char **argv) {
 		 break;
       case 'x' : ddoca = atof(optarg);
 		 break;
+      case 'y' : By = atof(optarg);
+		 break;
+      case 'g' : Bgrad = atof(optarg);
+		 break;
       default: print_usage();
 	       exit(EXIT_FAILURE);
     }
@@ -154,14 +161,21 @@ int main(int argc, char **argv) {
   TRandom* TR = new TRandom3(iseed);
   pmass = masses[imass];
   TFile htfile("HitTest.root","RECREATE");
-// define the context
-  UniformBField BF(1.0); // 1 Tesla
-  Context context(BF);
+
+  // construct BField
+  Vec3 bnom(0.0,By,1.0);
+  BField* BF;
+  if(Bgrad != 0){
+    BF = new GradBField(1.0-0.5*zrange*Bgrad,1.0+0.5*zrange*Bgrad,-0.5*zrange,0.5*zrange);
+    BF->fieldVect(bnom,Vec3(0.0,0.0,0.0));
+  } else {
+    BF = new UniformBField(bnom);
+  }
   CVD2T d2t(sdrift,sigt*sigt);
   Vec4 origin(0.0,0.0,0.0,0.0);
   float sint = sqrt(1.0-cost*cost);
   Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass);
-  LHelix lhel(origin,momv,icharge,context);
+  LHelix lhel(origin,momv,icharge,bnom);
   PLHelix plhel(lhel);
   // truncate the range according to the Z range
   Vec3 vel; plhel.velocity(0.0,vel);
@@ -218,7 +232,7 @@ int main(int argc, char **argv) {
     if(fabs(tp.doca())> ambigdoca)
       ambig = tp.doca() < 0 ? WireHit::left : WireHit::right;
     // construct the hit from this trajectory
-    StrawHit sh(tline,context,d2t,smat,ambigdoca,ambig);
+    StrawHit sh(tline,*BF,d2t,smat,ambigdoca,ambig);
     hits.push_back(sh);
    // compute residual
     Residual res;
@@ -264,6 +278,7 @@ int main(int argc, char **argv) {
   rulers->Draw();
   hcan->Write();
 
+// test updating the hit residual and derivatives with different trajectories
   vector<double> delpars { 0.5, 0.1, 0.5, 0.5, 0.005, 5.0}; // small parameter changes for derivative calcs
   unsigned nsteps(10);
   vector<TGraph*> hderivg(LHelix::NParams());
