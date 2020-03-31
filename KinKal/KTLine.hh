@@ -92,11 +92,11 @@ namespace KinKal {
 	      charge_ *= -1;
 	      pars_.parameters()[t0_] *= -1.0;
       }
-      //
+      
     private :
       PDATA pars_; // parameters
       double mbar_;  // reduced mass in units of mm, computed from the mass and nominal field
-      double pbar_;
+      double pbar_; // here momentum is an input parameter, not calculated
       Vec3 bnom_; // nominal BField
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
       ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global

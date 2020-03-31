@@ -8,23 +8,14 @@ using namespace std;
 using namespace ROOT::Math;
 
 namespace KinKal {
-  vector<string> KTLine::paramTitles_ = {
-    "Transverse Radius",
-    "Longiduinal Wavelength",
-    "Cylinder Center X",
-    "Cylinder Center Y",
-    "Azimuth at Z=0 Plane",
-    "Time at Z=0 Plane"}; 
-  vector<string> KTLine::paramNames_ = {
-  "Radius","Lambda","CenterX","CenterY","Phi0","Time0"};
+  //I think we dont need all that LHelix has here as its defined in TLine
   vector<string> KTLine::paramUnits_ = {
-  "mm","mm","mm","mm","radians","ns"};
-  std::vector<std::string> const& KTLine::paramNames() { return paramNames_; }
+  "mm","radians","mm","","ns"};
+  
   std::vector<std::string> const& KTLine::paramUnits() { return paramUnits_; }
-  std::vector<std::string> const& KTLine::paramTitles() { return paramTitles_; }
-  std::string const& KTLine::paramName(ParamIndex index) { return paramNames_[static_cast<size_t>(index)];}
+  
   std::string const& KTLine::paramUnit(ParamIndex index) { return paramUnits_[static_cast<size_t>(index)];}
-  std::string const& KTLine::paramTitle(ParamIndex index) { return paramTitles_[static_cast<size_t>(index)];}
+  
 
   KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) : KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
   KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range) : TTraj(range), KInter(mom0.M(),charge), bnom_(bnom), needsrot_(false) {
