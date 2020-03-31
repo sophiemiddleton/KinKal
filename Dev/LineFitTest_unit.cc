@@ -6,7 +6,7 @@
 #include "MatEnv/DetMaterial.hh"
 #include "KinKal/PKTraj.hh"
 #include "KinKal/LHelix.hh"
-#include "KinKal/TLine.hh"
+#include "KinKal/KTLine.hh"
 #include "KinKal/TPoca.hh"
 #include "KinKal/StrawHit.hh"
 #include "KinKal/StrawMat.hh"
@@ -50,8 +50,8 @@ using namespace KinKal;
 using namespace std;
 // avoid confusion with root
 using KinKal::TLine;
-typedef KinKal::PKTraj<LHelix> PLHelix;
-typedef KinKal::KKTrk<LHelix> KKTRK;
+typedef KinKal::PKTraj<KTLine> PLine; //Note: set up a Line based trajectory
+typedef KinKal::KKTrk<KTLine> KKTRK; //Note Set up a Line based Trk
 // ugly global variables
 double zrange(3000.0), rmax(800.0); // tracker dimension
 double sprop(0.8*CLHEP::c_light), sdrift(0.065), rstraw(2.5);
@@ -70,7 +70,7 @@ TRandom* TR = new TRandom3(iseed);
 CVD2T d2t(sdrift,sigt*sigt);
 
 void print_usage() {
-  printf("Usage: FitTest  --momentum f --costheta f --azimuth f --particle i --charge i --zrange f --nhits i --hres f --seed i --escale f --maxniter f --ambigdoca f --ntries i --addmat i --ttree i --By f --Bgrad f\n");
+  printf("Usage: LineFitTest  --momentum f --costheta f --azimuth f --particle i --charge i --zrange f --nhits i --hres f --seed i --escale f --maxniter f --ambigdoca f --ntries i --addmat i --ttree i --By f --Bgrad f\n"); //TODO
 }
 
 
@@ -82,9 +82,7 @@ struct LinePars{
 };
 
 
-//NOTES: this function can probably be adapted 
-// helper function
-KinKal::TLine GenerateStraw(PLHelix const& traj, double htime) {
+KinKal::TLine GenerateStraw(PLine const& traj, double htime) {
   // start with the true helix position at this time
   Vec4 hpos; hpos.SetE(htime);
   traj.position(hpos);
@@ -117,10 +115,10 @@ KinKal::TLine GenerateStraw(PLHelix const& traj, double htime) {
   // measurement time is the longest time
   TRange trange(tmeas-2.0*shlen/sprop,tmeas);
   // construct the trajectory for this hit
-  return TLine(mpos,vprop,tmeas,trange);
+  return TLine(mpos,vprop,tmeas,trange); //TODO - does this constructor work?
 }
 
-void createSeed(KTLine & seed){
+void createSeed(KTLine & seed){ //KTLine
   auto& seedpar = seed.params();
   seedpar.covariance() = ROOT::Math::SMatrixIdentity();
   for(unsigned ipar=0;ipar < 6; ipar++){
@@ -130,7 +128,7 @@ void createSeed(KTLine & seed){
   }
 }
 
-double createHits(PLHelix& plhel,StrawMat const& smat, std::vector<StrawHit>& shits,bool addmat) {
+double createHits(PLine& plhel,StrawMat const& smat, std::vector<StrawHit>& shits,bool addmat) {
   //  cout << "Creating " << nhits << " hits " << endl;
   // divide time range
   double dt = (plhel.range().range()-2*tbuff)/(nhits-1);
@@ -139,7 +137,7 @@ double createHits(PLHelix& plhel,StrawMat const& smat, std::vector<StrawHit>& sh
   for(size_t ihit=0; ihit<nhits; ihit++){
     double htime = tbuff + plhel.range().low() + ihit*dt;
     auto tline = GenerateStraw(plhel,htime);
-    TDPoca<PLHelix,TLine> tp(plhel,tline);
+    TDPoca<PLine,TLine> tp(plhel,tline);
     WireHit::LRAmbig ambig(WireHit::null);
     if(fabs(tp.doca())> ambigdoca) ambig = tp.doca() < 0 ? WireHit::left : WireHit::right;
     // construct the hit from this trajectory
@@ -310,7 +308,7 @@ int main(int argc, char **argv) {
   LHelix lhel(origin,momv,icharge,bnom); //TODO
 
   cout << "True initial " << lhel << endl;
-  PLHelix plhel(lhel);
+  PLine plhel(lhel);
   // truncate the range according to the Z range
   Vec3 vel; plhel.velocity(0.0,vel);
   plhel.setRange(TRange(-0.5*zrange/vel.Z()-tbuff,0.5*zrange/vel.Z()+tbuff));
@@ -464,7 +462,7 @@ int main(int argc, char **argv) {
       double tsint = sqrt(1.0-tcost*tcost);
       Mom4 tmomv(mom*tsint*cos(tphi),mom*tsint*sin(tphi),mom*tcost,pmass);
       LHelix tlhel(torigin,tmomv,icharge,bnom);
-      PLHelix tplhel(tlhel);
+      PLine tplhel(tlhel);
       Vec3 vel; tplhel.velocity(0.0,vel);
       tplhel.setRange(TRange(-0.5*zrange/vel.Z()-tbuff,0.5*zrange/vel.Z()+tbuff));
       shits.clear();
