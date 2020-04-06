@@ -1,11 +1,11 @@
 
-// ToyMC test of fitting an Line-based KKTrk
+// ToyMC test of fitting an KTLine-based KKTrk
 //
 //kinKal:
 #include "MatEnv/MatDBInfo.hh"
 #include "MatEnv/DetMaterial.hh"
 #include "KinKal/PKTraj.hh"
-#include "KinKal/LHelix.hh"
+#include "KinKal/KTLine.hh"
 #include "KinKal/KTLine.hh"
 #include "KinKal/TPoca.hh"
 #include "KinKal/StrawHit.hh"
@@ -127,7 +127,7 @@ void createSeed(KTLine & seed){ //KTLine
     seedpar.covariance()[ipar][ipar] *= perr*perr;
   }
 }
-
+//TODO - what is PLine?
 double createHits(PLine& plhel,StrawMat const& smat, std::vector<StrawHit>& shits,bool addmat) {
   //  cout << "Creating " << nhits << " hits " << endl;
   // divide time range
@@ -149,7 +149,7 @@ double createHits(PLine& plhel,StrawMat const& smat, std::vector<StrawHit>& shit
       std::vector<MatXing> mxings;
       smat.findXings(tp,mxings);
       auto const& endpiece = plhel.nearestPiece(tp.t0());
-      KKXing<LHelix> ktmi(endpiece,tp.t0(),mxings);
+      KKXing<KTLine> ktmi(endpiece,tp.t0(),mxings);
       double mom = endpiece.momentum(tp.t0());
       Mom4 endmom;
       endpiece.momentum(tp.t0(),endmom);
@@ -193,7 +193,7 @@ double createHits(PLine& plhel,StrawMat const& smat, std::vector<StrawHit>& shit
 	// terminate if there is catastrophic energy loss
       if(fabs(desum)/mom > 0.1)break;
       // generate a new piece and append
-      LHelix newend(endpos,endmom,endpiece.charge(),bnom,TRange(tp.t0(),plhel.range().high()));
+      KTLine newend(endpos,endmom,endpiece.charge(),bnom,TRange(tp.t0(),plhel.range().high()));
       if(!plhel.append(newend))
 	cout << "Error appending traj " << newend << endl;
     }
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
   float sint = sqrt(1.0-cost*cost);
   Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass);
 
-  LHelix lhel(origin,momv,icharge,bnom); //TODO
+  KTLine lhel(origin,momv,icharge,bnom); //TODO
 
   cout << "True initial " << lhel << endl;
   PLine plhel(lhel);
@@ -343,8 +343,8 @@ int main(int argc, char **argv) {
 //  auto const& effs = kktrk.effects();
 //  for(auto const& eff : effs) {
 //    cout << "Eff at time " << eff->time() << " status " << eff->status(TDir::forwards)  << " " << eff->status(TDir::backwards);
-//    auto ihit = dynamic_cast<const KKHit<LHelix>*>(eff.get());
-//    auto imhit = dynamic_cast<const KKMHit<LHelix>*>(eff.get());
+//    auto ihit = dynamic_cast<const KKHit<KTLine>*>(eff.get());
+//    auto imhit = dynamic_cast<const KKMHit<KTLine>*>(eff.get());
 //    if(ihit != 0){
 //      cout << " Hit status " << ihit->poca().status() << " doca " << ihit->poca().doca() << ihit->refResid() << endl;
 //    } else if(imhit != 0){
@@ -354,13 +354,13 @@ int main(int argc, char **argv) {
 //  }
   TFile fitfile("FitTest.root","RECREATE");
   // tree variables
-  LHelixPars ftpars_, etpars_, spars_, ffitpars_, ffiterrs_, efitpars_, efiterrs_; //TODO
+  KTLinePars ftpars_, etpars_, spars_, ffitpars_, ffiterrs_, efitpars_, efiterrs_; //TODO
   float chisq_, etmom_, ftmom_, ffmom_, efmom_, tde_, chiprob_;
   float fft_,eft_;
   int ndof_, niter_;
   if(ntries <=0 ){
   // draw the fit result
-    TCanvas* pttcan = new TCanvas("pttcan","PieceLHelix",1000,1000);
+    TCanvas* pttcan = new TCanvas("pttcan","PieceKTLine",1000,1000);
     auto const& fithel = kktrk.fitTraj();
     unsigned np = fithel.range().range()*fithel.speed(fithel.range().mid());
     TPolyLine3D* fitpl = new TPolyLine3D(np);
@@ -434,25 +434,25 @@ int main(int argc, char **argv) {
     TH1F* chisqprob = new TH1F("chisqprob", "Chisquared probability", 100,0,1.0);
     TH1F* logchisqprob = new TH1F("logchisqprob", "Chisquared probability", 100,-10,0.0);
     string htitle, hname;
-    TH2F* corravg = new TH2F("corravg","Average correlation matrix magnitudes",LHelix::NParams(),-0.5,LHelix::NParams()-0.5,LHelix::NParams(), -0.5,LHelix::NParams()-0.5);
+    TH2F* corravg = new TH2F("corravg","Average correlation matrix magnitudes",KTLine::NParams(),-0.5,KTLine::NParams()-0.5,KTLine::NParams(), -0.5,KTLine::NParams()-0.5);
     TAxis* xax = corravg->GetXaxis();
     TAxis* yax = corravg->GetYaxis();
     double nsig(10.0);
     double pscale = nsig/sqrt(nhits);
-    for(size_t ipar=0;ipar< LHelix::NParams(); ipar++){
-      auto tpar = static_cast<LHelix::ParamIndex>(ipar);
-      hname = string("d") + LHelix::paramName(tpar);
-      htitle = string("#Delta ") + LHelix::paramTitle(tpar);
+    for(size_t ipar=0;ipar< KTLine::NParams(); ipar++){
+      auto tpar = static_cast<KTLine::ParamIndex>(ipar);
+      hname = string("d") + KTLine::paramName(tpar);
+      htitle = string("#Delta ") + KTLine::paramTitle(tpar);
       dpgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-pscale*sigmas[ipar],pscale*sigmas[ipar]);
-      hname = string("p") + LHelix::paramName(tpar);
-      htitle = string("Pull ") + LHelix::paramTitle(tpar);
+      hname = string("p") + KTLine::paramName(tpar);
+      htitle = string("Pull ") + KTLine::paramTitle(tpar);
       fdpullgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-nsig,nsig);
       bdpullgenh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,-nsig,nsig);
-      hname = string("e") + LHelix::paramName(tpar);
-      htitle = string("Error ") + LHelix::paramTitle(tpar);
+      hname = string("e") + KTLine::paramName(tpar);
+      htitle = string("Error ") + KTLine::paramTitle(tpar);
       fiterrh[ipar] = new TH1F(hname.c_str(),htitle.c_str(),100,0.0,pscale*sigmas[ipar]);
-      xax->SetBinLabel(ipar+1,LHelix::paramName(tpar).c_str());
-      yax->SetBinLabel(ipar+1,LHelix::paramName(tpar).c_str());
+      xax->SetBinLabel(ipar+1,KTLine::paramName(tpar).c_str());
+      yax->SetBinLabel(ipar+1,KTLine::paramName(tpar).c_str());
     }
     for(unsigned itry=0;itry<ntries;itry++){
       // randomize the helix
@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
       double tcost = TR->Uniform(0.5,0.8);
       double tsint = sqrt(1.0-tcost*tcost);
       Mom4 tmomv(mom*tsint*cos(tphi),mom*tsint*sin(tphi),mom*tcost,pmass);
-      LHelix tlhel(torigin,tmomv,icharge,bnom);
+      KTLine tlhel(torigin,tmomv,icharge,bnom);
       PLine tplhel(tlhel);
       Vec3 vel; tplhel.velocity(0.0,vel);
       tplhel.setRange(TRange(-0.5*zrange/vel.Z()-tbuff,0.5*zrange/vel.Z()+tbuff));
@@ -481,7 +481,7 @@ int main(int argc, char **argv) {
      // momentum
       // accumulate parameter difference and pull
       vector<double> cerr(6,0.0), bcerr(6,0.0);
-      for(size_t ipar=0;ipar< LHelix::NParams(); ipar++){
+      for(size_t ipar=0;ipar< KTLine::NParams(); ipar++){
 	cerr[ipar] = sqrt(fpars.covariance()[ipar][ipar]);
 	bcerr[ipar] = sqrt(bfpars.covariance()[ipar][ipar]);
 	dpgenh[ipar]->Fill(fpars.parameters()[ipar]-tpars.parameters()[ipar]);
@@ -492,8 +492,8 @@ int main(int argc, char **argv) {
       // accumulate average correlation matrix
       auto const& cov = fpars.covariance();
       //    auto cormat = cov;
-      for(unsigned ipar=0; ipar <LHelix::NParams();ipar++){
-	for(unsigned jpar=ipar;jpar < LHelix::NParams(); jpar++){
+      for(unsigned ipar=0; ipar <KTLine::NParams();ipar++){
+	for(unsigned jpar=ipar;jpar < KTLine::NParams(); jpar++){
 	  double corr = cov[ipar][jpar]/(cerr[ipar]*cerr[jpar]);
 	  //	cormat[ipar][jpar] = corr;
 	  corravg->Fill(ipar,jpar,fabs(corr));
@@ -533,9 +533,9 @@ int main(int argc, char **argv) {
 	auto const& effs = kktrk.effects();
 	for(auto const& eff : effs) {
 	  cout << "Eff at time " << eff->time() << " status " << eff->status(TDir::forwards)  << " " << eff->status(TDir::backwards);
-	  auto ihit = dynamic_cast<const KKHit<LHelix>*>(eff.get());
-	  auto imhit = dynamic_cast<const KKMHit<LHelix>*>(eff.get());
-	  auto end = dynamic_cast<const KKEnd<LHelix>*>(eff.get());
+	  auto ihit = dynamic_cast<const KKHit<KTLine>*>(eff.get());
+	  auto imhit = dynamic_cast<const KKMHit<KTLine>*>(eff.get());
+	  auto end = dynamic_cast<const KKEnd<KTLine>*>(eff.get());
 	  if(end != 0) {
 	    cout << "End direction " << end->tDir() << " time " << end->time() << endl;
 	  }else if(ihit != 0){
@@ -554,7 +554,7 @@ int main(int argc, char **argv) {
     // fill canvases
     TCanvas* dpcan = new TCanvas("dpcan","dpcan",800,600);
     dpcan->Divide(3,2);
-    for(size_t ipar=0;ipar<LHelix::NParams();++ipar){
+    for(size_t ipar=0;ipar<KTLine::NParams();++ipar){
       dpcan->cd(ipar+1);
       dpgenh[ipar]->Fit("gaus");
     }
@@ -562,14 +562,14 @@ int main(int argc, char **argv) {
 
     TCanvas* fpullcan = new TCanvas("fpullcan","fpullcan",800,600);
     fpullcan->Divide(3,2);
-    for(size_t ipar=0;ipar<LHelix::NParams();++ipar){
+    for(size_t ipar=0;ipar<KTLine::NParams();++ipar){
       fpullcan->cd(ipar+1);
       fdpullgenh[ipar]->Fit("gaus");
     }
     fpullcan->Write();
     TCanvas* bpullcan = new TCanvas("bpullcan","bpullcan",800,600);
     bpullcan->Divide(3,2);
-    for(size_t ipar=0;ipar<LHelix::NParams();++ipar){
+    for(size_t ipar=0;ipar<KTLine::NParams();++ipar){
       bpullcan->cd(ipar+1);
       bdpullgenh[ipar]->Fit("gaus");
 
@@ -577,7 +577,7 @@ int main(int argc, char **argv) {
     bpullcan->Write();
     TCanvas* perrcan = new TCanvas("perrcan","perrcan",800,600);
     perrcan->Divide(3,2);
-    for(size_t ipar=0;ipar<LHelix::NParams();++ipar){
+    for(size_t ipar=0;ipar<KTLine::NParams();++ipar){
       perrcan->cd(ipar+1);
       fiterrh[ipar]->Draw();
     }

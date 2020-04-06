@@ -169,7 +169,7 @@ namespace KinKal {
 
 
 //The following code is copied from above and adapted to the KTLine case.
-
+//1) Specialization for KTLine:
 template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, double precision) : TPocaBase(ktline,tline,precision)  { 
     // reset status
     reset();
@@ -205,7 +205,7 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       // compute length from expansion point to POCA and convert to times
       double ktlen = (ktdd - ldd*ddot)/denom;
       double llen = (ktdd*ddot - ldd)/denom;
-      kttime += ktlen/ktspeed; // helix time is iterative
+      kttime += ktlen/ktspeed; // ktline time is iterative
       ltime = tline.t0() + llen/tline.speed(ltime);  // line time is always WRT t0
       // compute DOCA
       ktline.position(kttime,ktpos);
@@ -240,6 +240,18 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       doca_ = copysign(doca,lsign);
     }
   }
+//TODO: all these instances needed:
+template<> TDPoca<KTLine,TLine>::TDPoca(TPoca<KTLine,TLine> const& tpoca) : TPoca<KTLine,TLine>(tpoca){}
+
+template<> TDPoca<KTLine,TLine>::TDPoca(KTLine const& ktline, TLine const& tline, double precision) : TDPoca<KTLine,TLine>(TPoca<KTLine,TLine>(ktline,tline,precision)){}
+
+typedef PKTraj<KTLine> PKTLine;//TODO - what is this "PKTLine"
+  template<> TPoca<PKTLine,TLine>::TPoca(PKTLine const& pktline, TLine const& tline, double precision) : TPocaBase(pktline,tline,precision)  {}
+
+template<> TDPoca<PKTLine,TLine>::TDPoca(TPoca<PKTLine,TLine> const& tpoca) : TPoca<KTLine,TLine>(tpoca) {}
+
+template<> TDPoca<PKTLine,TLine>::TDPoca(PKTLine const& pktline, TLine const& tline, double precision) :
+    TDPoca<PKTLine,TLine>(TPoca<PKTLine,TLine>(pktline,tline,precision)) {}
 
 
 

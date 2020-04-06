@@ -8,9 +8,9 @@ using namespace std;
 using namespace ROOT::Math;
 
 namespace KinKal {
-  //I think we dont need all that LHelix has here as its defined in TLine
+  //Note : This class inherits a lot from TLine. So, I think we dont need all that LHelix has here as its defined in TLine
   vector<string> KTLine::paramUnits_ = {
-  "mm","radians","mm","","ns"};
+  "mm","radians","mm","","ns"};//d0, phi0,z0, cost
   
   std::vector<std::string> const& KTLine::paramUnits() { return paramUnits_; }
   
