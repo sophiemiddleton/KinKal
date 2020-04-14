@@ -4,92 +4,153 @@
 //  class to use information from a hit in the Kinematic fit.
 //  Used as part of the kinematic Kalman fit
 //
-#include "KinKal/KKWEff.hh"
+#include "KinKal/KKEff.hh"
 #include "KinKal/PKTraj.hh"
 #include "KinKal/THit.hh"
-#include "KinKal/TPoca.hh"
-#include "KinKal/TLine.hh"
+#include "KinKal/TPocaBase.hh"
 #include "KinKal/Residual.hh"
+#include <ostream>
+#include <memory>
 
 namespace KinKal {
-  class TTraj;
-  template <class KTRAJ> class KKHit : public KKWEff<KTRAJ> {
+  template <class KTRAJ> class KKHit : public KKEff<KTRAJ> {
     public:
       typedef KKEff<KTRAJ> KKEFF;
       typedef PKTraj<KTRAJ> PKTRAJ;
-      typedef TDPoca<PKTRAJ,TLine> TDPOCA;
+      typedef THit<KTRAJ> THIT;
+      typedef Residual<KTRAJ> RESIDUAL;
+      typedef std::shared_ptr<THIT> THITPTR;
       typedef typename KTRAJ::PDATA PDATA; // forward derivative type
+      typedef typename KKEFF::WDATA WDATA; // forward the typedef
+      typedef typename KKEFF::KKDATA KKDATA;
+      typedef TData<PDATA::PDim()> TDATA;
       typedef typename KTRAJ::PDATA::DVEC DVEC; // forward derivative type
       typedef typename KTRAJ::PDER PDER; // forward derivative type
-      virtual unsigned nDOF() const override { return thit_.isActive() ? thit_.nDOF() : 0; }
-      THit const& hit() const { return thit_; }
-      virtual bool update(PKTRAJ const& ref)  override;
-      virtual bool isActive() const override { return thit_.isActive(); }
-      virtual double time() const override { return tdpoca_.poca0().T(); } // time on the main trajectory
-      virtual double chisq(PDATA const& pars) const override;
+      virtual unsigned nDOF() const override { return thit_->isActive() ? thit_->nDOF() : 0; }
+      virtual float fitChi() const override; 
+      virtual float chisq(PDATA const& pdata) const override{ float chival = chi(pdata); return chival*chival; } 
+      virtual void update(PKTRAJ const& pktraj)  override;
+      virtual void update(PKTRAJ const& pktraj, MConfig const& mconfig) override;
+      virtual void process(KKDATA& kkdata,TDir tdir) override;
+      virtual bool isActive() const override { return thit_->isActive(); }
+      virtual float time() const override { return rresid_.time(); } // time on the particle trajectory
+      virtual void print(std::ostream& ost=std::cout,int detail=0) const override;
       virtual ~KKHit(){}
+      // local functions
+      void updateCache(PKTRAJ const& pktraj);
+      void setTemp(float temp) { rvscale_ = (1.0+temp)*(1.0+temp); } // scale the variance using the 'temperature'.  This deweights the measurement
       // construct from a hit and reference trajectory
-      KKHit(THit const& thit, KTRAJ const& reftraj);
-      KKHit(THit const& thit, PKTRAJ const& reftraj);
-      Residual const& refResid() const { return rresid_; }
-      TDPOCA const& poca() const { return tdpoca_; }
-      // residual derivatives WRT local trajectory parameters
-      PDER dRdP() const { return rresid_.dRdD()*tdpoca_.dDdP() + rresid_.dRdT()*tdpoca_.dTdP(); }
+      KKHit(THITPTR const& thit, PKTRAJ const& reftraj);
+      // interface for reduced residual
+      float chi(PDATA const& pdata) const;
+      // accessors
+      THITPTR const& tHit() const { return thit_; }
+      RESIDUAL const& refResid() const { return rresid_; }
+      PDATA const& refParams() const { return ref_; }
+      WDATA const& weightCache() const { return wcache_; }
+      // compute the reduced residual
     private:
-    // helpers
-      void setWeight();
-      THit const& thit_; // hit used for this constraint
-      DVEC ref_; // reference parameters
-      TDPOCA tdpoca_; // POCA between the reference trajectory and the sensor trajectory
-      Residual rresid_; // residual between the hit and reference
+      THITPTR thit_ ; // hit used for this constraint
+      PDATA ref_; // reference parameters
+      WDATA wcache_; // sum of processing weights in opposite directions, excluding this hit's information. used to compute chisquared and reduced residuals
+      WDATA hiteff_; // wdata representation of this effect's constraint/measurement
+      RESIDUAL rresid_; // residuals for this reference and hit
+      float rvscale_; // variance factor due to annealing 'temperature'
   };
 
-  template<class KTRAJ> KKHit<KTRAJ>::KKHit(THit const& thit, PKTRAJ const& reftraj) : thit_(thit) ,
-    tdpoca_(reftraj,thit_.sensorTraj()) {
-    ref_ = reftraj.nearestPiece(tdpoca_.t0()).params().parameters();
-    thit_.resid(tdpoca_,rresid_);
-    setWeight();
+  template<class KTRAJ> KKHit<KTRAJ>::KKHit(THITPTR const& thit, PKTRAJ const& reftraj) : thit_(thit), rvscale_(1.0) {
+    update(reftraj);
   }
-  
-  template<class KTRAJ> bool KKHit<KTRAJ>::update(PKTRAJ const& ref) {
-  // update the hit state to the previous TPOCA
-    thit_.update(tdpoca_);
-    tdpoca_ = TDPOCA(ref,thit_.sensorTraj());
-    ref_ = ref.nearestPiece(tdpoca_.t0()).params().parameters();
-    thit_.resid(tdpoca_,rresid_);
-    setWeight();
-    KKEffBase::updateStatus();
-    return true;
+ 
+  template<class KTRAJ> void KKHit<KTRAJ>::process(KKDATA& kkdata,TDir tdir) {
+    // direction is irrelevant for adding information
+    if(this->isActive()){
+      // cache the processing weights, adding both processing directions
+      wcache_ += kkdata.wData();
+      // add this effect's information
+      kkdata.append(hiteff_);
+    }
+    KKEffBase::setStatus(tdir,KKEffBase::processed);
   }
 
-  template<class KTRAJ> void KKHit<KTRAJ>::setWeight() {
+  template<class KTRAJ> void KKHit<KTRAJ>::update(PKTRAJ const& pktraj) {
+    // compute residual and derivatives from hit using reference parameters
+    thit_->resid(pktraj, rresid_);
+    updateCache(pktraj);
+  }
+
+  template<class KTRAJ> void KKHit<KTRAJ>::update(PKTRAJ const& pktraj, MConfig const& mconfig) {
+    // reset the annealing temp
+    setTemp(mconfig.temp_);
+    // update the hit internal state; this can depend on specific configuration parameters
+    if(mconfig.updatehits_)
+      thit_->update(pktraj,mconfig, rresid_);
+    else
+      thit_->resid(pktraj, rresid_);
+    // update the state of this object
+    updateCache(pktraj);
+  }
+
+  template<class KTRAJ> void KKHit<KTRAJ>::updateCache(PKTRAJ const& pktraj) {
+    // reset the processing cache
+    wcache_ = WDATA();
+    // scale resid variance by temp normalization
+    float tvar = rresid_.variance()*rvscale_; 
+    ref_ = pktraj.nearestPiece(rresid_.time()).params();
     // convert derivatives to a Nx1 matrix (for root)
     ROOT::Math::SMatrix<double,KTRAJ::NParams(),1> dRdPM;
-    auto drdp = dRdP();
-    dRdPM.Place_in_col(drdp,0,0);
+    dRdPM.Place_in_col(rresid_.dRdP(),0,0);
     // convert the variance into a 1X1 matrix
     ROOT::Math::SMatrix<double, 1,1, ROOT::Math::MatRepSym<double,1> > RVarM;
-    RVarM(0,0) = 1.0/rresid_.residVar();
+    // weight by inverse variance
+    RVarM(0,0) = 1.0/tvar;
     // expand these into the weight matrix
-    KKWEff<KTRAJ>::wdata_.weightMat() = ROOT::Math::Similarity(dRdPM,RVarM);
-    KKWEff<KTRAJ>::wdata_.setStatus(PDATA::valid);
-    // reference weight vector from reference parameters
-    KKWEff<KTRAJ>::wdata_.weightVec() = KKWEff<KTRAJ>::wData().weightMat()*ref_;
+    hiteff_.weightMat() = ROOT::Math::Similarity(dRdPM,RVarM);
+    hiteff_.setStatus(TDATA::valid);
     // translate residual value into weight vector WRT the reference parameters
-    // and add change WRT reference; sign convention reflects resid = measurement - prediction
-    KKWEff<KTRAJ>::wdata_.weightVec() += drdp*rresid_.resid()/rresid_.residVar();
+    // sign convention reflects resid = measurement - prediction
+    hiteff_.weightVec() = hiteff_.weightMat()*ref_.parameters() + rresid_.dRdP()*rresid_.value()/tvar;
+    KKEffBase::updateStatus();
   }
 
-  template<class KTRAJ> double KKHit<KTRAJ>::chisq(PDATA const& pdata) const {
-    // compute the difference between these parameters and the reference parameters
-    DVEC dpvec = pdata.parameters() - ref_; 
-    // use the differnce to 'correct' the reference residual to be WRT these parameters
-    double newres = refResid().resid() - ROOT::Math::Dot(dpvec,dRdP()); 
-    // project the parameter covariance into a residual space variance (adding the intrinsic variance)
-    double rvar = ROOT::Math::Similarity(dRdP(),pdata.covariance()) + refResid().residVar();
-    // chisquared is the residual squared divided by the variance
-    double chisq = newres*newres/rvar;
-    return chisq;
+  template<class KTRAJ> float KKHit<KTRAJ>::fitChi() const {
+    float retval(0.0);
+    if(this->isActive() && KKEffBase::wasProcessed(TDir::forwards) && KKEffBase::wasProcessed(TDir::backwards)) {
+    // Invert the cache to get unbiased parameters at this hit
+      PDATA unbiased(wcache_);
+      retval = chi(unbiased);
+    }
+    return retval;
+  }
+
+  template<class KTRAJ> float KKHit<KTRAJ>::chi(PDATA const& pdata) const {
+    float retval(0.0);
+    if(this->isActive()) {
+      // compute the difference between these parameters and the reference parameters
+      DVEC dpvec = pdata.parameters() - ref_.parameters(); 
+      // use the differnce to 'correct' the reference residual to be WRT these parameters
+      float uresid = rresid_.value() - ROOT::Math::Dot(dpvec,rresid_.dRdP());
+      // project the parameter covariance into a residual space variance
+      float rvar = ROOT::Math::Similarity(rresid_.dRdP(),pdata.covariance());
+      // add the measurement variance, scaled by the current temperature normalization
+      rvar +=  rresid_.variance()*rvscale_;
+      // chi is the ratio of these
+      retval = uresid/sqrt(rvar);
+    }
+    return retval;
+  }
+
+  template <class KTRAJ> void KKHit<KTRAJ>::print(std::ostream& ost, int detail) const {
+    ost << "KKHit " << static_cast<KKEff<KTRAJ> const&>(*this) << " resid " << refResid()  << std::endl;
+    if(detail > 0){
+      thit_->print(ost,detail);    
+      ost << "Reference " << ref_ << std::endl;
+    }
+  }
+
+  template <class KTRAJ> std::ostream& operator <<(std::ostream& ost, KKHit<KTRAJ> const& kkhit) {
+    kkhit.print(ost,0);
+    return ost;
   }
 
 }

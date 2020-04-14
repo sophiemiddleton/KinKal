@@ -8,9 +8,9 @@
 //
 
 #include "KinKal/Vectors.hh"
-#include "KinKal/TTraj.hh"
-#include "KinKal/KInter.hh"
+#include "KinKal/TRange.hh"
 #include "KinKal/PData.hh"
+#include "KinKal/KInter.hh"
 #include "CLHEP/Units/PhysicalConstants.h"
 #include "Math/Rotation3D.h"
 #include <vector>
@@ -19,7 +19,7 @@
 
 namespace KinKal {
 
-  class LHelix : public TTraj, public KInter {
+  class LHelix : public KInter {
     public:
       // This class must provide the following to be used to instantiate the 
       // classes implementing the Kalman fit
@@ -43,28 +43,30 @@ namespace KinKal {
       // construct from parameters
       LHelix(PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range=TRange());
       LHelix(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange());
-      virtual ~LHelix() {} 
-      // particle position and momentum as a function of time
-      void position(Vec4& pos) const override; // time is input 
-      void position(double t,Vec3& pos) const override; // time is input 
-      void velocity(double time, Vec3& vel) const override;
-      void direction(double tval,Vec3& dir) const override;
-      void momentum(double t,Mom4& mom) const override;
-      // scalar momentum and energy in MeV/c units
-      double momentum(double time) const override { return  mass_*pbar()/mbar_; }
-      double energy(double time) const override { return  mass_*ebar()/mbar_; }
-      // speed in mm/ns
-      double speed(double time) const override {  return CLHEP::c_light*beta(); }
-      void rangeInTolerance(TRange& range, BField const& bfield, double tol) const override;
-
-      // local momentum direction basis
-      virtual void dirVector(MDir dir,double time,Vec3& unit) const override;
+      // TTraj interface 
+      void position(Vec4& pos) const ; // time is input 
+      void position(float time,Vec3& pos) const ; // time is input 
+      void velocity(float time, Vec3& vel) const ;
+      void direction(float time,Vec3& dir) const ;
+      double speed(float time) const  {  return CLHEP::c_light*beta(); }
+      void rangeInTolerance(TRange& range, BField const& bfield, double tol) const ;
+      void dirVector(MDir dir,float time,Vec3& unit) const ;
+      void print(std::ostream& ost, int detail) const ;
+      TRange const& range() const { return trange_; }
+      TRange& range() { return trange_; }
+      void setRange(TRange const& trange) { trange_ = trange; }
+      bool inRange(float time) const { return trange_.inRange(time); }
+      // KInter interface
+      void momentum(float time,Mom4& mom) const ;
+      double momentum(float time) const  { return  mass_*pbar()/mbar_; }
+      double momentumVar(float time) const ;
+      double energy(float time) const  { return  mass_*ebar()/mbar_; }
 
       // momentum change derivatives; this is required to instantiate a KalTrk using this KInter
-      void momDeriv(MDir mdir, double time, PDER& der) const;
+      void momDeriv(MDir mdir, float time, PDER& der) const;
       // position change derivatives; this is required to instantiate a KalTrk using this KInter
       // we only care about this along the momentum direction
-      void posDeriv(double time, PDER& der) const;
+      void posDeriv(float time, PDER& der) const;
 
      // named parameter accessors
       double param(size_t index) const { return pars_.parameters()[index]; }
@@ -80,11 +82,11 @@ namespace KinKal {
       // simple functions; these can be cached if they cause performance problems
       double pbar2() const { return  rad()*rad() + lam()*lam(); } 
       double pbar() const { return  sqrt(pbar2()); } // momentum in mm
-      double ebar2() const { return  rad()*rad() + lam()*lam() + mbar_*mbar_; }
+      double ebar2() const { return  pbar2() + mbar_*mbar_; }
       double ebar() const { return  sqrt(ebar2()); } // energy in mm
       double mbar() const { return mbar_; } // mass in mm; includes charge information!
-      double Q() const { return mbar_/mass_; } // reduced charge
-      double omega() const { return copysign(CLHEP::c_light,mbar_)/ebar(); } // rotational velocity, sign set by magnetic force 
+      double Q() const { return mass_/mbar_; } // reduced charge
+      double omega() const { return copysign(CLHEP::c_light, mbar_) / ebar(); } // rotational velocity, sign set by magnetic force
       double beta() const { return pbar()/ebar(); } // relativistic beta
       double gamma() const { return fabs(ebar()/mbar_); } // relativistic gamma
       double dphi(double t) const { return omega()*(t - t0()); }
@@ -102,6 +104,7 @@ namespace KinKal {
       }
       //
     private :
+      TRange trange_;
       PDATA pars_; // parameters
       double mbar_;  // reduced mass in units of mm, computed from the mass and nominal field
       Vec3 bnom_; // nominal BField

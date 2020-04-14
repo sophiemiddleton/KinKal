@@ -5,29 +5,15 @@
 // This is a base class for specific subclasses representing measurements, material interactions, etc.
 // Templated on the trajectory class representing the particle in this fit
 //
-#include "KinKal/TDir.hh"
 #include "KinKal/PKTraj.hh"
 #include "KinKal/KKData.hh"
+#include "KinKal/KKEffBase.hh"
+#include "KinKal/KKConfig.hh"
 #include <array>
 #include <memory>
+#include <ostream>
 
 namespace KinKal {
-// base class for KKEff, for untemplated functions and content
-  class KKEffBase {
-    public:
-      enum Status{unprocessed=0,processed,updated,failed};
-      // time of this effect 
-      virtual double time() const = 0;
-      virtual unsigned nDOF() const = 0;
-      virtual bool isActive() const = 0;
-      void updateStatus() { status_[0] = status_[1] = updated; }
-      Status status(TDir tdir) const { return status_[static_cast<std::underlying_type<TDir>::type>(tdir)]; }
-      KKEffBase() : status_{{unprocessed,unprocessed}} {}
-      virtual ~KKEffBase(){}
-    protected:
-      void setStatus(TDir tdir, Status status) { status_[static_cast<std::underlying_type<TDir>::type>(tdir)] = status; }
-      std::array<Status,2> status_; // status of processing in each direction
-  };
 
   template<class KTRAJ> class KKEff : public KKEffBase {
     public:
@@ -36,17 +22,31 @@ namespace KinKal {
       typedef WData<KTRAJ::PDATA::PDim()> WDATA;
       typedef typename KTRAJ::PDATA PDATA;
       typedef PKTraj<KTRAJ> PKTRAJ;
-      // Add this effect to the ongoing fit in a give direction.  Return value indicates success
-      virtual bool process(KKDATA& kkdata,TDir tdir) = 0;
-      virtual double chisq(PDATA const& pars) const = 0; // compute chisquared WRT some parameters
-      // update this effect for a new refernce trajectory.  This must be overriden, but the base class implementation is still useful
-      virtual bool update(PKTRAJ const& ref) = 0;
+      virtual float time() const = 0; // time of this effect
+      virtual unsigned nDOF() const {return 0; }; // how/if this effect contributes to the measurement NDOF
+      virtual bool isActive() const = 0; // whether this effect is/was used in the fit
+       // Add this effect to the ongoing fit in a give direction.
+      virtual void process(KKDATA& kkdata,TDir tdir) = 0;
+      virtual float fitChi() const { return 0.0;} // unbiased chi contribution of this effect after fitting
+      virtual float chisq(PDATA const& pdata) const { return 0.0;} // chisq contribution WRT parameters 
+      // update this effect for a new refernce trajectory
+      virtual void update(PKTRAJ const& ref) = 0;
+      // update this effect for a new configuration and reference trajectory
+      virtual void update(PKTRAJ const& ref, MConfig const& mconfig) = 0;
       // append this effects trajectory change (if appropriate)
-      virtual bool append(PKTRAJ& fit) = 0;
+      virtual void append(PKTRAJ& fit) {};
+      virtual void print(std::ostream& ost=std::cout,int detail=0) const =0;
       virtual ~KKEff(){} 
     protected:
       KKEff() {}
   };
+  
+  template <class KTRAJ> std::ostream& operator <<(std::ostream& ost, KKEff<KTRAJ> const& eff) {
+    ost << (eff.isActive() ? "Active " : "Inactive ") << "time " << eff.time() << " status " <<
+    TDir::forwards << " " << KKEffBase::statusName(eff.status(TDir::forwards))  << " : " <<
+    TDir::backwards << " " << KKEffBase::statusName(eff.status(TDir::backwards));
+    return ost;
+  }
 
 }
 

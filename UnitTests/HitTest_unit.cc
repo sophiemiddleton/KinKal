@@ -8,7 +8,10 @@
 #include "KinKal/TLine.hh"
 #include "KinKal/TPoca.hh"
 #include "KinKal/StrawHit.hh"
+#include "KinKal/LightHit.hh"
 #include "KinKal/StrawMat.hh"
+#include "KinKal/KKMHit.hh"
+#include "KinKal/Residual.hh"
 #include "KinKal/BField.hh"
 #include "KinKal/Vectors.hh"
 #include "KinKal/KKHit.hh"
@@ -44,6 +47,21 @@ using namespace std;
 // avoid confusion with root
 using KinKal::TLine;
 typedef KinKal::PKTraj<LHelix> PLHelix;
+// define the typedefs: to change to a different trajectory implementation, just change this line
+typedef LHelix KTRAJ;
+typedef KinKal::PKTraj<KTRAJ> PKTRAJ;
+typedef THit<KTRAJ> THIT;
+typedef std::shared_ptr<THIT> THITPTR;
+typedef DXing<KTRAJ> DXING;
+typedef std::shared_ptr<DXING> DXINGPTR;
+typedef StrawHit<KTRAJ> STRAWHIT;
+typedef std::shared_ptr<STRAWHIT> STRAWHITPTR;
+typedef LightHit<KTRAJ> LIGHTHIT;
+typedef std::shared_ptr<LIGHTHIT> LIGHTHITPTR;
+typedef StrawXing<KTRAJ> STRAWXING;
+typedef std::shared_ptr<STRAWXING> STRAWXINGPTR;
+typedef std::vector<THITPTR> THITCOL;
+typedef Residual<KTRAJ> RESIDUAL;
 
 // ugly global variables
 double zrange(3000.0), rmax(800.0); // tracker dimension
@@ -105,6 +123,8 @@ int main(int argc, char **argv) {
   float ddoca(0.1);
   float scatfrac(0.995);
   double Bgrad(0.0), By(0.0);
+  // time hit parameters
+  float ttvar(0.25), twvar(100.0), shmax(80.0), vlight(0.8*CLHEP::c_light);
 
   static struct option long_options[] = {
     {"momentum",     required_argument, 0, 'm' },
@@ -171,7 +191,7 @@ int main(int argc, char **argv) {
   } else {
     BF = new UniformBField(bnom);
   }
-  CVD2T d2t(sdrift,sigt*sigt);
+  CVD2T d2t(sdrift,sigt*sigt,rstraw);
   Vec4 origin(0.0,0.0,0.0,0.0);
   float sint = sqrt(1.0-cost*cost);
   Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass);
@@ -217,7 +237,7 @@ int main(int argc, char **argv) {
   TGraph* gwscat = new TGraph(nhits); gwscat->SetTitle("Wall Scattering;DOCA (mm);Scattering (radians)");
 
   // generate hits
-  std::vector<StrawHit> hits;
+  THITCOL thits;
   std::vector<TPolyLine3D*> tpl;
   cout << "ambigdoca = " << ambigdoca << endl;
   for(size_t ihit=0; ihit<nhits; ihit++){
@@ -225,18 +245,18 @@ int main(int argc, char **argv) {
     auto tline = GenerateStraw(plhel,htime,TR);
 //    cout << "TLine " << tline << endl;
 // try to create TPoca for a hit
-    TDPoca<PLHelix,TLine> tp(plhel,tline);
+    TPoca<PLHelix,TLine> tp(plhel,tline);
 //    cout << "TPoca status " << tp.statusName() << " doca " << tp.doca() << " dt " << tp.deltaT() << endl;
 // only set ambiguity if DOCA is above this value
-    WireHit::LRAmbig ambig(WireHit::null);
+    LRAmbig ambig(LRAmbig::null);
     if(fabs(tp.doca())> ambigdoca)
-      ambig = tp.doca() < 0 ? WireHit::left : WireHit::right;
+      ambig = tp.doca() < 0 ? LRAmbig::left : LRAmbig::right;
+    auto sxing = std::make_shared<STRAWXING>(tp,smat);
     // construct the hit from this trajectory
-    StrawHit sh(tline,*BF,d2t,smat,ambigdoca,ambig);
-    hits.push_back(sh);
+    thits.push_back(std::make_shared<STRAWHIT>(*BF, tline, d2t,sxing,ambig));
    // compute residual
-    Residual res;
-    sh.resid(tp,res);
+    RESIDUAL  res;
+    thits.back()->resid(plhel,res);
     cout << res << " ambig " << ambig << endl;
     TPolyLine3D* line = new TPolyLine3D(2);
     Vec3 plow, phigh;
@@ -249,14 +269,14 @@ int main(int argc, char **argv) {
     tpl.push_back(line);
     // compute material effects
 //    double adot = tp.dirDot();
-    double adot =0.0; // transverse
+//    double adot =0.0; // transverse
+    double adot = tp.dirDot();
     double gpath = smat.gasPath(tp.doca(),ddoca,adot);
     double wpath = smat.wallPath(tp.doca(),ddoca,adot);
     ggplen->SetPoint(ihit,fabs(tp.doca()),gpath );
     gwplen->SetPoint(ihit,fabs(tp.doca()),wpath);
     cout << "doca " << tp.doca() << " gas path " << smat.gasPath(tp.doca(),ddoca,adot)
     << " wall path " << smat.wallPath(tp.doca(),ddoca,adot) << endl;
-
     // compute material effects
     double geloss = gasmat->energyLoss(mom,gpath,pmass);
     double weloss = wallmat->energyLoss(mom,wpath,pmass);
@@ -266,7 +286,38 @@ int main(int argc, char **argv) {
     gweloss->SetPoint(ihit,fabs(tp.doca()),weloss);
     ggscat->SetPoint(ihit,fabs(tp.doca()),gscat);
     gwscat->SetPoint(ihit,fabs(tp.doca()),wscat);
+
+    KKMHit<LHelix> kmh(thits.back(),plhel);
+    kmh.print(cout,1);
   }
+  // create a LightHit at the end, axis parallel to z
+  // first, find the position at showermax.
+  Vec3 lpos, hend, lmeas;
+  plhel.position(plhel.range().high(),hend);
+  double ltime = plhel.range().high()+shmax/plhel.speed(plhel.range().high());
+  plhel.position(ltime,lpos);
+  // smear the x-y position by the transverse variance.
+  lmeas.SetX(TR->Gaus(lpos.X(),sqrt(twvar)));
+  lmeas.SetY(TR->Gaus(lpos.Y(),sqrt(twvar)));
+  // set the z position to the sensor plane (end of the crystal)
+  lmeas.SetZ(hend.Z()+200.0);
+  // set the measurement time to correspond to the light propagation from showermax, smeared by the resolution
+  double tmeas = TR->Gaus(ltime+(lmeas.Z()-lpos.Z())/vlight,sqrt(ttvar));
+  // create the ttraj for light propagation
+  Vec3 lvel(0.0,0.0,vlight);
+  TLine lline(lmeas,lvel,tmeas);
+  // then create the hit and add it; the hit has no material
+  LIGHTHIT lhit(lline, ttvar, twvar);
+  lhit.print();
+  Vec3 lhpos;
+  lline.position(ltime,lhpos);
+  // test
+  cout << "plhel pos " << lpos << endl;
+  cout << "lhit pos " << lhpos << endl;
+  RESIDUAL lres;
+  lhit.resid(plhel,lres);
+  cout << lres << endl;
+
   // draw the origin and axes
   TAxis3D* rulers = new TAxis3D();
   rulers->GetXaxis()->SetAxisColor(kBlue);
@@ -284,8 +335,12 @@ int main(int argc, char **argv) {
   vector<TGraph*> hderivg(LHelix::NParams());
   for(size_t ipar=0;ipar < LHelix::NParams();ipar++){
     auto tpar = static_cast<LHelix::ParamIndex>(ipar);
+<<<<<<< HEAD
     hderivg[ipar] = new TGraph(hits.size()*nsteps);
 
+=======
+    hderivg[ipar] = new TGraph(thits.size()*nsteps);
+>>>>>>> origin/master
     std::string title = LHelix::paramTitle(tpar) + " Residual Derivative Test;"
     + LHelix::paramName(tpar) + " Exact #Delta (mm);"
     + LHelix::paramName(tpar) + " Algebraic #Delta (mm)";
@@ -302,17 +357,17 @@ int main(int argc, char **argv) {
       ROOT::Math::SVector<double,6> dpvec;
       dpvec[ipar] += dpar;
       // update the hits
-      for(auto& hit : hits) {
-	KKHit kkhit(hit,plhel);
-	Residual ores = kkhit.refResid(); // original residual
+      for(auto& thit : thits) {
+	KKHit kkhit(thit,plhel);
+	RESIDUAL ores = kkhit.refResid(); // original residual
 	kkhit.update(modplhel);// refer to moded helix
-	Residual mres = kkhit.refResid();
-	double dr = ores.resid()-mres.resid(); // this sign is confusing.  I think
+	RESIDUAL mres = kkhit.refResid();
+	double dr = ores.value()-mres.value(); // this sign is confusing.  I think
 	// it means the fit needs to know how much to change the ref parameters, which is
 	// opposite from how much the ref parameters are different from the measurement
 	// compare the change with the expected from the derivatives
 	kkhit.update(plhel);// refer back to original
-	auto pder = kkhit.dRdP();
+	auto pder = ores.dRdP();
 	double ddr = ROOT::Math::Dot(pder,dpvec);
 	hderivg[ipar]->SetPoint(ipt++,dr,ddr);
       }

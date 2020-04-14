@@ -27,7 +27,7 @@ namespace KinKal {
   std::string const& LHelix::paramTitle(ParamIndex index) { return paramTitles_[static_cast<size_t>(index)];}
 
   LHelix::LHelix( Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) : LHelix(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
-  LHelix::LHelix( Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range) : TTraj(range), KInter(mom0.M(),charge), bnom_(bnom), needsrot_(false) {
+  LHelix::LHelix( Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& trange) : KInter(mom0.M(),charge), trange_(trange), bnom_(bnom), needsrot_(false) {
     static double twopi = 2*M_PI; // FIXME
     // Transform into the system where Z is along the Bfield.
     Vec4 pos(pos0);
@@ -68,8 +68,18 @@ namespace KinKal {
   }
 
   LHelix::LHelix( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range) : LHelix(pdata,mass,charge,Vec3(0.0,0.0,bnom),range) {}
-  LHelix::LHelix( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range) : 
-    TTraj(range), KInter(mass,charge), pars_(pdata), bnom_(bnom) {}
+  LHelix::LHelix( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& trange) : 
+     KInter(mass,charge), trange_(trange), pars_(pdata), bnom_(bnom) {
+      double momToRad = 1000.0/(charge_*bnom_.R()*CLHEP::c_light);
+      // reduced mass; note sign convention!
+      mbar_ = -mass_*momToRad;
+    }
+  
+  double LHelix::momentumVar(float time) const {
+    PDATA::DVEC dMomdP(rad(), lam(),  0.0, 0.0 ,0.0 , 0.0);
+    dMomdP *= mass()/(pbar()*mbar());
+    return ROOT::Math::Similarity(dMomdP,params().covariance());
+  }
 
   void LHelix::position(Vec4& pos) const {
     Vec3 temp;
@@ -77,9 +87,9 @@ namespace KinKal {
     pos.SetXYZT(temp.X(),temp.Y(),temp.Z(),pos.T());
   }
   
-  void LHelix::position(double t, Vec3& pos) const {
+  void LHelix::position(float time, Vec3& pos) const {
     // compute azimuthal angle
-    double df = dphi(t);
+    double df = dphi(time);
     double phival = df + phi0();
     // now compute position
     pos.SetX(cx() + rad()*sin(phival));
@@ -88,8 +98,8 @@ namespace KinKal {
     if(needsrot_) pos = brot_(pos);
  } 
 
-  void LHelix::momentum(double tval,Mom4& mom) const{
-    double phival = phi(tval);
+  void LHelix::momentum(float time,Mom4& mom) const{
+    double phival = phi(time);
     double factor = mass_/mbar_;
     mom.SetPx(factor * rad() * cos(phival));
     mom.SetPy(factor * rad() * sin(phival));
@@ -98,22 +108,22 @@ namespace KinKal {
     if(needsrot_) mom = brot_(mom);
   }
 
- void LHelix::velocity(double tval,Vec3& vel) const{
+ void LHelix::velocity(float time,Vec3& vel) const{
     Mom4 mom;
-    momentum(tval,mom);
-    vel = mom.Vect()*(CLHEP::c_light*fabs(Q()/ebar()));
+    momentum(time,mom);
+    vel = mom.Vect()*CLHEP::c_light/fabs(Q()*ebar());
     if(needsrot_)vel = brot_(vel);
   }
 
-  void LHelix::direction(double tval,Vec3& dir) const{
+  void LHelix::direction(float time,Vec3& dir) const{
     Mom4 mom;
-    momentum(tval,mom);
+    momentum(time,mom);
     dir = mom.Vect().Unit();
     if(needsrot_)dir = brot_(dir);
   }
 
-  void LHelix::dirVector(MDir mdir,double tval,Vec3& unit) const {
-    double phival = phi(tval); // azimuth at this point
+  void LHelix::dirVector(MDir mdir,float time,Vec3& unit) const {
+    double phival = phi(time); // azimuth at this point
     double norm = 1.0/copysign(pbar(),mbar_); // sign matters!
     switch ( mdir ) {
       case theta1:
@@ -128,7 +138,7 @@ namespace KinKal {
 	unit.SetZ(0.0);
 	break;
       case momdir: // along momentum: sign matters!
-	direction(tval,unit);
+	direction(time,unit);
 	break;
       default:
 	throw std::invalid_argument("Invalid direction");
@@ -137,7 +147,7 @@ namespace KinKal {
   }
 
 // derivatives of momentum projected along the given basis WRT the 6 parameters
-  void LHelix::momDeriv(MDir mdir, double time, PDER& pder) const {
+  void LHelix::momDeriv(MDir mdir, float time, PDER& pder) const {
     // compute some useful quantities
     double bval = beta();
     double omval = omega();
@@ -180,7 +190,7 @@ namespace KinKal {
 
   // derivatives of position.Dot(direction) WRT the 6 parameters
   // these are used to apply the continuity constraint at lossy effects
-  void LHelix::posDeriv(double time, PDER& pder) const {
+  void LHelix::posDeriv(float time, PDER& pder) const {
   // precompute some values
     double df = dphi(time);
     double phival = phi0() + df;
@@ -216,14 +226,18 @@ namespace KinKal {
     if(dt < brange.range())brange.high() = brange.low() + dt;
   }
  
-
-  std::ostream& operator <<(std::ostream& ost, LHelix const& lhel) {
-    ost << " LHelix parameters: ";
+  void LHelix::print(std::ostream& ost, int detail) const {
+    auto perr = params().diagonal(); 
+    ost << " LHelix " << range() << " parameters: ";
     for(size_t ipar=0;ipar < LHelix::npars_;ipar++){
-      ost << LHelix::paramName(static_cast<LHelix::ParamIndex>(ipar) ) << " " << lhel.param(ipar);
+      ost << LHelix::paramName(static_cast<LHelix::ParamIndex>(ipar) ) << " " << param(ipar) << " +- " << perr(ipar);
       if(ipar < LHelix::npars_-1) ost << " ";
     }
-    ost << lhel.range();
+    ost << std::endl;
+  }
+
+  std::ostream& operator <<(std::ostream& ost, LHelix const& lhel) {
+    lhel.print(ost,0);
     return ost;
   }
 

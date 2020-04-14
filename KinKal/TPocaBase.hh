@@ -1,60 +1,54 @@
 #ifndef KinKal_TPocaBase_hh
 #define KinKal_TPocaBase_hh
 //
-// Untemplated base class for POCA calculations
+// data payload for POCA calculations
 //
 #include "KinKal/Vectors.hh"
-#include "KinKal/TTraj.hh"
 #include <string>
 #include <vector>
 namespace KinKal {
+  // Hint class for TPOCA calculation. TPOCA search will start at these TOCA values, if provided.  This allows to
+  // disambiguate cases with multiple solutions (like looping trajectories), or to speed up calculations when an
+  // approximate answer is already known.
+  struct TPocaHint{
+    bool particleHint_, sensorHint_; // could have info on one, both, or none
+    float particleToca_, sensorToca_; // approximate values, used as starting points for cacluations
+    TPocaHint() : particleHint_(false), sensorHint_(false), particleToca_(0.0), sensorToca_(0.0) {}
+  };
+
   class TPocaBase {
     public:
       enum TPStat{converged=0,unconverged,pocafailed,derivfailed,invalid,unknown};
       static std::string const& statusName(TPStat status);
       //accessors
-      Vec4 const& poca(size_t itraj) const { return poca_[itraj]; }
-      Vec4 const& poca0() const { return poca_[0]; }
-      Vec4 const& poca1() const { return poca_[1]; }
-      double t0() const { return poca_[0].T(); }
-      double t1() const { return poca_[1].T(); }
+      Vec4 const& particlePoca() const { return partPoca_; }
+      Vec4 const& sensorPoca() const { return sensPoca_; }
+      float particleToca() const { return partPoca_.T(); }
+      float sensorToca() const { return sensPoca_.T(); }
       TPStat status() const { return status_; }
       std::string const& statusName() const { return statusName(status_); }
-      double doca() const { return doca_; } // DOCA signed by angular momentum
-      double dDoca() const { return ddoca_; } // uncertainty on doca
-      double precision() const { return precision_; }
+      float doca() const { return doca_; } // DOCA signed by angular momentum
+      float docaVar() const { return docavar_; } // uncertainty on doca due to particle trajectory parameter uncertainties (NOT sensory uncertainties)
+      float tocaVar() const { return tocavar_; } // uncertainty on toca due to particle trajectory parameter uncertainties (NOT sensory uncertainties)
+      float dirDot() const { return ddot_; } // cosine of angle between traj directions at POCA
+      float precision() const { return precision_; }
       // utility functions
-      void delta(Vec4& ds) const { ds = poca_[1]-poca_[0]; }
-      double deltaT() const { return poca_[1].T() - poca_[0].T(); }
-      void delta(Vec3& ds) const { ds = poca_[1].Vect()-poca_[0].Vect(); }
+      void delta(Vec4& ds) const { ds = sensPoca_-partPoca_; } // measurement - prediction convention
+      float deltaT() const { return sensPoca_.T() - partPoca_.T(); }
+      void delta(Vec3& ds) const { ds = sensPoca_.Vect()-partPoca_.Vect(); }
       bool usable() const { return status_ != pocafailed && status_ != unknown; }
-      virtual TTraj const& ttraj0() const { return *ttraj_[0]; }
-      virtual TTraj const& ttraj1() const { return *ttraj_[1]; }
-      bool inRange() { return ttraj_[0]->inRange(poca_[0].T()) && ttraj_[1]->inRange(poca_[1].T()); }
-      double dirDot() const { // dot product between directions at POCA
-	Vec3 dir0, dir1;
-	ttraj0().direction(t0(),dir0);
-	ttraj1().direction(t1(),dir1);
-	return dir0.Dot(dir1);
-      }
-
-      virtual ~TPocaBase(){}
     protected:
       TPStat status_; // status of computation
-      double doca_; // geometric distance of closest approach, signed by angular momentunm
-      double ddoca_; // geometric distance of closest approach, signed by angular momentunm
-      double precision_; // precision used to define convergence
-      std::array<Vec4,2> poca_; // spacetime points at GEOMETRIC closest approach
-      std::array<const TTraj*,2> ttraj_; // base class pointers to trajs
-      // override default constructor:
-      // default precision = 10 um on DOCA
-      TPocaBase(TTraj const& traj0,TTraj const& traj1, double precision=0.01) : status_(unknown), doca_(-1.0), ddoca_(-1.0), precision_(precision),
-      ttraj_{&traj0,&traj1} {}
-      // allow constructing an invalid object
-      TPocaBase() : status_(invalid), doca_(-1.0), ddoca_(-1.0), precision_(0.0) {}
+      float doca_, docavar_, tocavar_;
+      float ddot_;
+      float precision_; // precision used to define convergence
+      Vec4 partPoca_, sensPoca_; //POCA for particle and sensor
+      TPocaBase(float precision) : status_(invalid), doca_(-1.0), docavar_(-1.0), tocavar_(-1.0), ddot_(-1.0), precision_(precision)  {}
       void reset() {status_ = unknown;}
     private:
       static std::vector<std::string> statusNames_;
   };
+
+
 }
 #endif
