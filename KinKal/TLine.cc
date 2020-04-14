@@ -35,6 +35,7 @@ namespace KinKal {
       param(d0_) = poca.Rho();
       param(phi0_) = atan2(poca.Y(),poca.X());
       param(z0_) = poca.Z();
+      param(cost_) = asin(dir_.y()/sqrt(dir_.Mag2())); //TODO - do we need this?
       // check
       if(fabs(poca.Z()+(pddot*zddot - pos0_.Z())/stheta2) > 1e-5)
 	throw std::range_error("POCA calculation failed!");
@@ -46,6 +47,7 @@ namespace KinKal {
       param(phi0_) = atan2(pos0_.Y(),pos0_.X());
       param(z0_) = pos0_.Z();
       param(t0_) = tmeas;
+      param(cost_) = asin(dir_.y()/sqrt(dir_.Mag2()));//TODO - is this correct?
     }
   }
 

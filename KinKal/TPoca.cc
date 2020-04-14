@@ -165,8 +165,9 @@ namespace KinKal {
   template<> TDPoca<PLHelix,TLine>::TDPoca(PLHelix const& phelix, TLine const& tline, double precision) :
     TDPoca<PLHelix,TLine>(TPoca<PLHelix,TLine>(phelix,tline,precision)) { }
 
-
-
+//*************** KTLine Stuff ***************** //
+// S Middleton
+// April 2020
 
 //The following code is copied from above and adapted to the KTLine case.
 //1) Specialization for KTLine:
@@ -245,13 +246,13 @@ template<> TDPoca<KTLine,TLine>::TDPoca(TPoca<KTLine,TLine> const& tpoca) : TPoc
 
 template<> TDPoca<KTLine,TLine>::TDPoca(KTLine const& ktline, TLine const& tline, double precision) : TDPoca<KTLine,TLine>(TPoca<KTLine,TLine>(ktline,tline,precision)){}
 
-typedef PKTraj<KTLine> PKTLine;//TODO - what is this "PKTLine"
+/*typedef PKTraj<KTLine> PKTLine;//TODO - what is this "PKTLine" piece wise line? Would be have that?
   template<> TPoca<PKTLine,TLine>::TPoca(PKTLine const& pktline, TLine const& tline, double precision) : TPocaBase(pktline,tline,precision)  {}
 
 template<> TDPoca<PKTLine,TLine>::TDPoca(TPoca<PKTLine,TLine> const& tpoca) : TPoca<KTLine,TLine>(tpoca) {}
 
 template<> TDPoca<PKTLine,TLine>::TDPoca(PKTLine const& pktline, TLine const& tline, double precision) :
-    TDPoca<PKTLine,TLine>(TPoca<PKTLine,TLine>(pktline,tline,precision)) {}
+    TDPoca<PKTLine,TLine>(TPoca<PKTLine,TLine>(pktline,tline,precision)) {}*/
 
 
 

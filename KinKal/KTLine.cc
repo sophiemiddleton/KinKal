@@ -23,7 +23,7 @@ namespace KinKal {
     // Transform into the system where Z is along the Bfield.
     Vec4 pos(pos0);
     Mom4 mom(mom0);
-    if(fabs(bnom_.Theta()) >1.0e-6){
+    if(fabs(bnom_.Theta()) >1.0e-6){ //TODO - understand this.
       needsrot_ = true;
       Rotation3D rot(AxisAngle(Vec3(sin(bnom_.Phi()),-cos(bnom_.Phi()),0.0),bnom_.Theta()));
       pos = rot(pos);
@@ -34,6 +34,7 @@ namespace KinKal {
       auto test = rot(bnom_);
       if(fabs(test.Theta()) > 1.0e-6)throw std::invalid_argument("BField Error");
     }
+    
     // compute some simple useful parameters
     double pt = mom.Pt(); 
     double phibar = mom.Phi();
