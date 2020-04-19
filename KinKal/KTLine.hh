@@ -6,7 +6,7 @@
 #include "MatEnv/DetMaterial.hh"
 #include "KinKal/KInter.hh"
 #include "KinKal/TLine.hh"
-#include "KinKal/KTrk.hh" //need to initiate this on the KIter subclass
+//#include "KinKal/KTrk.hh" //need to initiate this on the KIter subclass
 #include <vector>
 #include <stdexcept>
 namespace KinKal {
@@ -76,22 +76,20 @@ namespace KinKal {
       double ebar() const { return  sqrt(ebar2()); } // energy in mm
       double mbar() const { return mbar_; } // mass in mm; includes charge information!
       double Q() const { return mbar_/mass_; } // reduced charge
-      double omega() const { return copysign(CLHEP::c_light,mbar_)/ebar(); } // rotational velocity, sign set by magnetic force 
+     
       double beta() const { return pbar()/ebar(); } // relativistic beta
       double gamma() const { return fabs(ebar()/mbar_); } // relativistic gamma
-      //double dphi(double t) const { return omega()*(t - t0()); }
-      double phi(double t) const { return  phi0(); } //TODO
-      double ztime(double zpos) const { return t0() + zpos/(omega()*lam()); }
-      double zphi(double zpos) const { return zpos/lam() + phi0(); }
+      double ztime(double zpos) const { return t0() + zpos/(speed()*dir.z()); } //time to travel Z
       int charge() const { return charge_; }
       Vec3 const& bnom() const { return bnom_; }
-      double bnomR() const { return bnom_.R(); }
-      // flip the helix in time and charge; it remains unchanged geometrically
+     /* double bnomR() const { return bnom_.R(); }
+
       void invertCT() {
 	      mbar_ *= -1.0;
 	      charge_ *= -1;
 	      pars_.parameters()[t0_] *= -1.0;
       }
+*/
       
     private :
       PDATA pars_; // parameters
@@ -99,11 +97,10 @@ namespace KinKal {
       double pbar_; // here momentum is an input parameter, not calculated
       Vec3 bnom_; // nominal BField
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
-      ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global
+      //ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global
       static std::vector<std::string> paramTitles_;
       static std::vector<std::string> paramNames_;
       static std::vector<std::string> paramUnits_;
-      // non-const accessors
       double& param(size_t index) { return pars_.parameters()[index]; }
  };
   std::ostream& operator <<(std::ostream& ost, KTLine const& ktline);

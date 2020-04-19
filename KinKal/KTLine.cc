@@ -19,21 +19,10 @@ namespace KinKal {
 
   KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) : KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
   KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range) : TTraj(range), KInter(mom0.M(),charge), bnom_(bnom), needsrot_(false) {
-    static double twopi = 2*M_PI; // FIXME
+
     // Transform into the system where Z is along the Bfield.
     Vec4 pos(pos0);
     Mom4 mom(mom0);
-    if(fabs(bnom_.Theta()) >1.0e-6){ //TODO - understand this.
-      needsrot_ = true;
-      Rotation3D rot(AxisAngle(Vec3(sin(bnom_.Phi()),-cos(bnom_.Phi()),0.0),bnom_.Theta()));
-      pos = rot(pos);
-      mom = rot(mom);
-      // create inverse rotation
-     brot_ = rot.Inverse();
-      // check
-      auto test = rot(bnom_);
-      if(fabs(test.Theta()) > 1.0e-6)throw std::invalid_argument("BField Error");
-    }
     
     // compute some simple useful parameters
     double pt = mom.Pt(); 
@@ -43,7 +32,7 @@ namespace KinKal {
     // reduced mass; note sign convention!
     mbar_ = -mass_*momToRad;
     // transverse radius of the helix
-    //TODO - in Line
+    //TODO - what do we need in Line class here?
   }
 
   KTLine::KTLine PDATA const& pdata, double mass, int charge, double bnom, TRange const& range) : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range) {}

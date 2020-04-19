@@ -335,12 +335,8 @@ int main(int argc, char **argv) {
   vector<TGraph*> hderivg(LHelix::NParams());
   for(size_t ipar=0;ipar < LHelix::NParams();ipar++){
     auto tpar = static_cast<LHelix::ParamIndex>(ipar);
-<<<<<<< HEAD
-    hderivg[ipar] = new TGraph(hits.size()*nsteps);
-
-=======
     hderivg[ipar] = new TGraph(thits.size()*nsteps);
->>>>>>> origin/master
+
     std::string title = LHelix::paramTitle(tpar) + " Residual Derivative Test;"
     + LHelix::paramName(tpar) + " Exact #Delta (mm);"
     + LHelix::paramName(tpar) + " Algebraic #Delta (mm)";

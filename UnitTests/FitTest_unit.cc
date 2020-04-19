@@ -380,13 +380,9 @@ int main(int argc, char **argv) {
   Vec4 origin(0.0,0.0,0.0,0.0);
   float sint = sqrt(1.0-cost*cost);
   Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass);
-<<<<<<< HEAD
 
-  LHelix lhel(origin,momv,icharge,bnom);
-
-=======
   KTRAJ lhel(origin,momv,icharge,bnom);
->>>>>>> origin/master
+
   cout << "True initial " << lhel << endl;
   PKTRAJ plhel(lhel);
   // truncate the range according to the Z range
@@ -637,12 +633,9 @@ int main(int argc, char **argv) {
       bdpcan->cd(ipar+1);
       bdpgenh[ipar]->Fit("gaus","q");
     }
-<<<<<<< HEAD
-    dpcan->Write();
 
-=======
     bdpcan->Write();
->>>>>>> origin/master
+
     TCanvas* fpullcan = new TCanvas("fpullcan","fpullcan",800,600);
     fpullcan->Divide(3,2);
     for(size_t ipar=0;ipar<KTRAJ::NParams();++ipar){
@@ -654,12 +647,8 @@ int main(int argc, char **argv) {
     bpullcan->Divide(3,2);
     for(size_t ipar=0;ipar<KTRAJ::NParams();++ipar){
       bpullcan->cd(ipar+1);
-<<<<<<< HEAD
-      bdpullgenh[ipar]->Fit("gaus");
-
-=======
       bdpullgenh[ipar]->Fit("gaus","q");
->>>>>>> origin/master
+
     }
     bpullcan->Write();
     TCanvas* perrcan = new TCanvas("perrcan","perrcan",800,600);
