@@ -14,15 +14,18 @@ namespace KinKal {
       constexpr static size_t NParams() { return npars_; }
       typedef PData<npars_> PDATA; // Data payload for this class
       static std::vector<std::string> const& paramNames(); 
+      static std::vector<std::string> const& paramUnits(); 
       static std::vector<std::string> const& paramTitles();
       static std::string const& paramName(ParamIndex index);
       static std::string const& paramTitle(ParamIndex index);
- 
+      static std::string const& paramUnit(ParamIndex index);
       // construct from a spacepoint and propagation velocity (mm/ns)
       // by default, the line has infinite unforced range
       TLine(Vec4 const& p0, Vec3 const& svel, TRange const& range=TRange(),bool forcerange=false);
       TLine(Vec3 const& p0, Vec3 const& svel, float tmeas, TRange const& range=TRange(),bool forcerange=false);
       PDATA const& params() const { return pars_; }
+      
+      
     // named parameter accessors
       double param(size_t index) const { return pars_.parameters()[index]; }
       double d0() const { return param(d0_); }
@@ -34,6 +37,7 @@ namespace KinKal {
       // simple functions 
       double cosTheta() const { return cost(); }
       double sinTheta() const { return sqrt(1.0-cost()*cost()); }
+      double theta() const { return acos(cost_);} 
 
       // cached values
       Vec3 const& pos0() const { return pos0_; }

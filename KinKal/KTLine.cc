@@ -39,59 +39,113 @@ namespace KinKal {
   KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range) : 
     TTraj(range), KInter(mass,charge), pars_(pdata), bnom_(bnom) {}
 
-  void KTLine::position(Vec4& pos) const {
-    Vec3 temp;
-    position(pos.T(),temp);
-    pos.SetXYZT(temp.X(),temp.Y(),temp.Z(),pos.T());
-  }
-  
-  void KTLine::position(double t, Vec3& pos) const {
-   
-   // pos.SetX();
-   // pos.SetY();
-   // pos.SetZ();
-    if(needsrot_) pos = brot_(pos);
- } 
+// KTLine inherits from KInter but we also want it be an instance of KKTrk, we need:
+//      void position(Vec4& pos) const; -->TLine
+//      void position(float time, Vec3& pos) const; -->TLine
+//      void velocity(float time, Vec3& vel) const; -->TLine
+//      double speed(float time) const; --> TLine
+//      void direction(float time, Vec3& dir) const; --> TLine
+//      void print(std::ostream& ost, int detail) const; --> TLine but Override
+// These are thing things we need to intiate in KTLine:
+//      void momentum(double t,Mom4& mom) const; 
+//      void momentum(Vec4 const& pos, Mom4& mom) const { return momentum(pos.T(),mom); }
+//      double momentum(float time) const; // momentum and energy magnitude in MeV/
+//      double momentumVar(float time) const; // variance on momentum value
+//      double energy(float time) const; 
+//      void rangeInTolerance(TRange& range, BField const& bfield, double tol);
+//      PDATA const& params() const;
+// Many of these are satisifed already within the TLine class.
 
-  void KTLine::momentum(double tval,Mom4& mom) const{
- 
-   // mom.SetPx();
-   // mom.SetPy();
-   // mom.SetPz();
-   // mom.SetM(mass_);
-   
+  double KTLine::momentumVar(float time) const {
+    //TODO
+    PDATA::DVEC dMomdP(0.0,  0.0, 0.0 ,0.0 , 0.0);
+    dMomdP *= mass()/(pbar()*mbar());
+    return ROOT::Math::Similarity(dMomdP,params().covariance());
   }
 
- void KTLine::velocity(double tval,Vec3& vel) const{
+  void KTLine::momentum(double tval, Mom4& mom) const{
+   mom.SetPx(mom()*dir().x());
+   mom.SetPy(mom()*dir().y());
+   mom.SetPz(mom()*dir().z());
+   mom.SetM(mass_);
+  }
+
+ void KTLine::velocity(double tval,Vec3& vel) const{//TODO - do we need thins?
     Mom4 mom;
     momentum(tval,mom);
     vel = mom.Vect()*(CLHEP::c_light*fabs(Q()/ebar()));
     if(needsrot_)vel = brot_(vel);
   }
 
-  void KTLine::direction(double tval,Vec3& dir) const{
-    Mom4 mom;
-    momentum(tval,mom);
-    dir = mom.Vect().Unit();
-    if(needsrot_)dir = brot_(dir);
-  }
+/*  The effects for changes in 2 perpendicular directions (theta1 = theta and
+  theta2 = phi()*sin(theta) can sometimes be added, as scattering in these
+  are uncorrelated. These axes are track specific. as cosmics are not always coming along the same track direction it is necessary to have difference parameterization than that used for the helixa case. 
 
+*/
   void KTLine::dirVector(MDir mdir,double tval,Vec3& unit) const {
-    //TODO
+    double phival = phi(time); // azimuth at this point
+    double norm = 1.0/copysign(pbar(),mbar_); // sign matters!
+    switch ( mdir ) {
+      case theta1: // purely plar change theta 1 = theta
+	      unit.SetX();
+	      unit.SetY();
+	      unit.SetZ();
+	      unit *= norm;
+	    break;
+        case theta2: // purely transverse - theta2 = phi()*sin(theta)
+	        unit.SetX();
+	        unit.SetY();
+	        unit.SetZ(0.0);
+	    break;
+        case momdir: // along momentum: sign matters!
+	        direction(time,unit);
+	    break;
+        default:
+	        throw std::invalid_argument("Invalid direction");
+    }
+    if(needsrot_) unit = brot_(unit);
   }
 
-// derivatives of momentum projected along the given basis WRT the 6 parameters
+// derivatives of momentum projected along the given basis WRT the 5 parameters
   void KTLine::momDeriv(MDir mdir, double time, PDER& pder) const {
-    // compute some useful quantities
-  //TODO
-  }
-
-  // derivatives of position.Dot(direction) WRT the 6 parameters
-  // these are used to apply the continuity constraint at lossy effects
-  void KTLine::posDeriv(double time, PDER& pder) const {
    //TODO
-
+    // compute some useful quantities
+    double dt = time-t0();
+    double fltlen = ...*dt;
+    // cases
+    switch ( mdir ) {
+      case theta1:
+	      // polar bending: only momentum and position are unchanged
+	      pder[cost_] = 1;
+	      pder[d0_] = 0;
+	      pder[phi0_] = 0;
+	      pder[z0_] = -1*fltlen*(1/sintheta));
+	      pder[t0_] = dt;
+	      
+	      break;
+      case theta2:
+	      // Azimuthal bending: R, Lambda, t0 are unchanged
+	      pder[cost_] = 0;
+	      pder[d0_] = -1*fltlen;
+	      pder[phi0_] = 1/sintheta;
+	      pder[z0_] = -d0()*(1/sintheta*tantheta);
+	      pder[t0_] = dt;
+    
+	      break;
+      case momdir:
+	      // fractional momentum change: position and direction are unchanged
+	      pder[cost_] = 0;
+	      pder[d0_] = 0;
+	      pder[phi0_] = 0;
+	      pder[z0_] = 0;
+	      pder[t0_] = 0;
+	    break;
+          default:
+	    throw std::invalid_argument("Invalid direction");
+        }
   }
+  }
+
 
   void KTLine::rangeInTolerance(TRange& brange, BField const& bfield, double tol) const {
     // precompute some factors
@@ -108,15 +162,14 @@ namespace KinKal {
     if(dt < brange.range())brange.high() = brange.low() + dt;
   }
  
-
-  std::ostream& operator <<(std::ostream& ost, KTLine const& ktline) {
-    ost << " KTLine parameters: ";
+    void KTLine::print(std::ostream& ost, int detail) const {
+    ost << " KTLine " <<  range() << " parameters: ";
     for(size_t ipar=0;ipar < KTLine::npars_;ipar++){
-      ost << KTLine::paramName(static_cast<KTLine::ParamIndex>(ipar) ) << " " << ktline.param(ipar);
-      if(ipar < KTLine::npars_-1) ost << " ";
+      ost << KTLine::paramName(static_cast<KTLine::ParamIndex>(ipar) ) << " : " << param(ipar);
+      if(ipar < KTLine::npars_-1) ost << " , ";
     }
-    ost << ktline.range();
-    return ost;
+    ost << endl;
   }
+
 
 } // KinKal namespace

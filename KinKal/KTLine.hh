@@ -14,61 +14,40 @@ namespace KinKal {
   class KTLine :  public KInter , public TLine {
     public:
 
-      // This class must provide the following to be used to instantiate the 
-      // classes implementing the Kalman fit
-      // define the indices and names of the parameters
-      enum ParamIndex {d0_=0,phi0_=1,z0_=2,cost_=3,t0_=4,npars_=5};
+      // As KTLine inherits from TLine, there is no need to define too much here.
       constexpr static ParamIndex t0Index() { return t0_; }
-      constexpr static size_t NParams() { return npars_; }
-      typedef PData<npars_> PDATA; // Data payload for this class
       typedef ROOT::Math::SVector<double,npars_> PDER; // derivative of parameters type 
-      static std::vector<std::string> const& paramNames(); 
-      static std::vector<std::string> const& paramUnits(); 
-      static std::vector<std::string> const& paramTitles();
-      static std::string const& paramName(ParamIndex index);
-      static std::string const& paramUnit(ParamIndex index);
-      static std::string const& paramTitle(ParamIndex index);
-
+      
       // construct from momentum, position, and particle properties.
       // This also requires the nominal BField, which can be a vector (3d) or a scalar (B along z)
       KTLine(Vec4 const& pos, Mom4 const& mom, int charge, Vec3 const& bnom, TRange const& range=TRange());
       KTLine(Vec4 const& pos, Mom4 const& mom, int charge, double bnom, TRange const& range=TRange());
+
       // construct from parameters
       KTLine(PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range=TRange());
       KTLine(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange());
+
+      //destructor:
       virtual ~KTLine() {} 
-      // particle position and momentum as a function of time
-      void position(Vec4& pos) const override; // time is input 
-      void position(double t,Vec3& pos) const override; // time is input 
-      void velocity(double time, Vec3& vel) const override;
-      void direction(double tval,Vec3& dir) const override;
-      void momentum(double t,Mom4& mom) const override;
-      // scalar momentum and energy in MeV/c units
-      double momentum(double time) const override { return  mass_*pbar()/mbar_; }
-      double energy(double time) const override { return  mass_*ebar()/mbar_; }
+
+      // particle momentum as a function of time
+      void momentum(double t, Mom4& mom) const;
+
+      // scalar momentum and energy in MeV/c units --> Needed for KKTrk:
+      double momentum(double time) const  { return  mass_*pbar()/mbar_; }
+      double energy(double time) const  { return  mass_*ebar()/mbar_; }
+
       // speed in mm/ns
-      double speed(double time) const override {  return CLHEP::c_light*beta(); }
-      void rangeInTolerance(TRange& range, BField const& bfield, double tol) const override;
+      void print(std::ostream& ost, int detail) const override;
+      void rangeInTolerance(TRange& range, BField const& bfield, double tol) const;
 
       // local momentum direction basis
-      virtual void dirVector(MDir dir,double time,Vec3& unit) const override;
+      virtual void dirVector(MDir dir,double time,Vec3& unit) const;
 
       // momentum change derivatives; this is required to instantiate a KalTrk using this KInter
       void momDeriv(MDir mdir, double time, PDER& der) const;
-      // position change derivatives; this is required to instantiate a KalTrk using this KInter
-      // we only care about this along the momentum direction
-      void posDeriv(double time, PDER& der) const;
 
-     // named parameter accessors
-      double param(size_t index) const { return pars_.parameters()[index]; }
-      PDATA const& params() const { return pars_; }
-      PDATA& params() { return pars_; }
-      double d0() const { return param(d0_); }
-      double z0() const { return param(z0_); }
-      double cost() const { return param(cost_); }
-      double phi0() const { return param(phi0_); }
-      double t0() const { return param(t0_); }
-      //TODO:
+      //TODO: check these things are useful
       // simple functions; these can be cached if they cause performance problems
       double pbar2() const { return  pbar_*pbar_; } 
       double pbar() const { return  pbar_; } // momentum in mm
@@ -81,29 +60,27 @@ namespace KinKal {
       double gamma() const { return fabs(ebar()/mbar_); } // relativistic gamma
       double ztime(double zpos) const { return t0() + zpos/(speed()*dir.z()); } //time to travel Z
       int charge() const { return charge_; }
-      Vec3 const& bnom() const { return bnom_; }
-     /* double bnomR() const { return bnom_.R(); }
 
-      void invertCT() {
-	      mbar_ *= -1.0;
-	      charge_ *= -1;
-	      pars_.parameters()[t0_] *= -1.0;
-      }
-*/
-      
+
+      Vec3 const& bnom() const { return bnom_; }//Needed?
+
+      //For the momentum, a magnitude:
+      double momMag() const{ return _mommentum_mag;} ;
+      void set_mom(double p){ _mommentum_mag = p; }
+      void set_mom(Vec4 p){ _mommentum = p; }
+      Vec4 mom() const { return momentum_;}
+
     private :
       PDATA pars_; // parameters
       double mbar_;  // reduced mass in units of mm, computed from the mass and nominal field
       double pbar_; // here momentum is an input parameter, not calculated
       Vec3 bnom_; // nominal BField
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
-      //ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global
-      static std::vector<std::string> paramTitles_;
-      static std::vector<std::string> paramNames_;
-      static std::vector<std::string> paramUnits_;
-      double& param(size_t index) { return pars_.parameters()[index]; }
+      ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global
+      double _mommentum_mag;
+      Vec4 momentum_; // 4 momentum vector
  };
-  std::ostream& operator <<(std::ostream& ost, KTLine const& ktline);
+ 
 }
 #endif
 
