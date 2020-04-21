@@ -19,6 +19,7 @@ namespace KinKal {
       static std::string const& paramName(ParamIndex index);
       static std::string const& paramTitle(ParamIndex index);
       static std::string const& paramUnit(ParamIndex index);
+
       // construct from a spacepoint and propagation velocity (mm/ns)
       // by default, the line has infinite unforced range
       TLine(Vec4 const& p0, Vec3 const& svel, TRange const& range=TRange(),bool forcerange=false);
@@ -26,7 +27,7 @@ namespace KinKal {
       PDATA const& params() const { return pars_; }
       
       
-    // named parameter accessors
+      // named parameter accessors
       double param(size_t index) const { return pars_.parameters()[index]; }
       double d0() const { return param(d0_); }
       double phi0() const { return param(phi0_); }
@@ -37,14 +38,19 @@ namespace KinKal {
       // simple functions 
       double cosTheta() const { return cost(); }
       double sinTheta() const { return sqrt(1.0-cost()*cost()); }
-      double theta() const { return acos(cost_);} 
+      double cosPhi0() const { return cos(phi0()); }
+      double sinPhi0() const { return sin(phi0()); }
+      double theta() const { return acos(cost());} 
+      double tanTheta() const { return sqrt(1.0-cost()*cost())/cost(); }
 
-      // cached values
+      // access position and direction
       Vec3 const& pos0() const { return pos0_; }
       Vec3 const& dir() const { return dir_; }
       double speed() const { return speed_; }
+
       // are we forcing the range?
       bool forceRange() const { return forcerange_; }
+
       // TOCA for a given point
       double TOCA(Vec3 point) const;
 
@@ -69,6 +75,8 @@ namespace KinKal {
 
       static std::vector<std::string> paramTitles_;
       static std::vector<std::string> paramNames_;
+      static std::vector<std::string> paramUnits_;
+
     // nonconst accessors
       double& param(size_t index)  { return pars_.parameters()[index]; }
   };

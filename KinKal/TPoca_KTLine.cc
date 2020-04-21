@@ -1,3 +1,11 @@
+/*
+
+To instantiate KKTrk on KTLine we need to specialize TPoca on the pair <KTLine, TLine>. This class takes care of that.
+
+S Middleton 2020
+
+*/
+
 #include "KinKal/TPoca.hh"
 #include "KinKal/LHelix.hh"
 #include "KinKal/TLine.hh"
@@ -9,29 +17,34 @@ namespace KinKal {
   
 
 //*************** KTLine Stuff ***************** //
-// S Middleton
-// April 2020
-
 //The following code is copied from above and adapted to the KTLine case.
 //1) Specialization for KTLine:
 template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, double precision) : TPocaBase(ktline,tline,precision)  { 
     // reset status
     reset();
-    double ktltime,ltime; 
-    // initialize the helix time using the Z position of the line
-    // this will fail if the line is long and parallel to the z axis as there can be multiple solutions FIXME!
-    htime = ktline.ztime(tline.z0());
-    ltime = tline.t0();
+     float ktltime,ltime;    
+    // similar for line; this shouldn't matter, since the solution is linear
+    if(hint.particleHint_)
+      ktlinetime = hint.particleToca_;//TODO - check what this hint is
+    else
+      ktlinetime = ktline.ztime(tline.z0());
+    // similar for line; this shouldn't matter, since the solution is linear
+    if(hint.sensorHint_)
+      ltime = hint.sensorToca_;
+    else
+      ltime= tline.t0();
     // use successive linear approximation until desired precision on DOCA is met.
-    double ddoca(1.0e5);
+    float dptoca(std::numeric_limits<float>::max()), dstoca(std::numeric_limits<float>::max());
+    
+    // use successive linear approximation until desired precision on DOCA is met.
     double doca(0.0);
-    static const unsigned maxiter=100; // don't allow infinite iteration.  This should be a parameter FIXME!
+    static const unsigned maxiter=100; 
     unsigned niter(0);
     // helix speed doesn't change
-    double ktspeed = ktline.speed(lhelix.t0());
+    double ktspeed = ktline.speed(ktline.t0());
     Vec3 ktdir;
-    while(fabs(ddoca) > precision_ && niter++ < maxiter) {
-      // find helix local position and direction
+    while(fabs(dpoca) > precision_ || fabs(dpoca) > precision_  && niter++ < maxiter) {
+      // find line's local position and direction
       Vec3 ktpos;
       ktline.position(htime,hpos);
       ktline.direction(htime,hdir);
@@ -49,8 +62,11 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       // compute length from expansion point to POCA and convert to times
       double ktlen = (ktdd - ldd*ddot)/denom;
       double llen = (ktdd*ddot - ldd)/denom;
-      kttime += ktlen/ktspeed; // ktline time is iterative
-      ltime = tline.t0() + llen/tline.speed(ltime);  // line time is always WRT t0
+      dptoca = (ktlen*ktspeed);
+      dstoca = tline.t0() + llen/tline.speed(ltime)) - ltime;
+      ktltime += dptoca; // ktline time is iterative
+      ltime += dstoca; // line time is always WRT t0, since it uses p0
+
       // compute DOCA
       ktline.position(kttime,ktpos);
       Vec3 lpos;
@@ -60,11 +76,10 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
 	      status_ = TPoca::pocafailed;
 	      break;
       }
-      ddoca = doca;
       doca = sqrt(dd2);
-      ddoca -= doca;
-      if(isnan(ddoca)){
-	      status_ = TPoca::pocafailed;
+       // update convergence test
+      if(isnan(doca)){
+	      status_ = pocafailed;
 	      break;
       }
     }
@@ -75,21 +90,42 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       else
 	      status_ = TPoca::unconverged;
         // set the positions
-      poca_[0].SetE(kttime);
-      ktline.position(poca_[0]);
-      poca_[1].SetE(ltime);
-      tline.position(poca_[1]);
+      partPoca_[0].SetE(kttime);//TODO-where is this defined
+      ktline.position(partPoca_[0]);
+      partPoca_[1].SetE(ltime);
+      tline.position(sensPoca_[1]);
       // sign doca by angular momentum projected onto difference vector
-      double lsign = tline.dir().Cross(ktdir).Dot(poca_[1].Vect()-poca_[0].Vect());
+      double lsign = tline.dir().Cross(ktdir).Dot(partPoca_[1].Vect()-partPoca_[0].Vect());
       doca_ = copysign(doca,lsign);
+
+      // pre-compute some values needed for the derivative calculations
+      Vec3 vdoca, ddir, hdir;
+      delta(vdoca);
+      ddir = vdoca.Unit();// direction vector along D(POCA) from traj 2 to 1 (line to helix)
+      ktline.direction(particlePoca().T(),hdir);
+//TODO - look at the BTrk version (TrkMomCalc)
+
+      // no t0 dependence, DOCA is purely geometric
+      dDdP_[KTLine::d0_] = ..
+      dDdP_[KTLine::cost_] = ...;
+      dDdP_[KTLine::phi0_] = ...
+      dDdP_[KTLine::z0_] = ...
+
+      // no spatial dependence, DT is purely temporal
+      dTdP_[KTLine::t0_] = 1.0; // time is 100% correlated
+
+      // propagate parameter covariance to variance on doca and toca
+      docavar_ = ROOT::Math::Similarity(dDdP(),ktline.params().covariance());
+      tocavar_ = ROOT::Math::Similarity(dTdP(),ktline.params().covariance());
+      // dot product between directions at POCA
+      Vec3 pdir, sdir;
+      ktline.direction(particleToca(),pdir);
+      tline.direction(sensorToca(),sdir);
+      ddot_ = pdir.Dot(sdir);
+
+
     }
   }
-//TODO: all these instances needed:
-template<> TDPoca<KTLine,TLine>::TDPoca(TPoca<KTLine,TLine> const& tpoca) : TPoca<KTLine,TLine>(tpoca){}
-
-template<> TDPoca<KTLine,TLine>::TDPoca(KTLine const& ktline, TLine const& tline, double precision) : TDPoca<KTLine,TLine>(TPoca<KTLine,TLine>(ktline,tline,precision)){}
-
-
 
 
 }
