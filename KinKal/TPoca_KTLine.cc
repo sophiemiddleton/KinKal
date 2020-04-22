@@ -104,12 +104,15 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       ddir = vdoca.Unit();// direction vector along D(POCA) from traj 2 to 1 (line to helix)
       ktline.direction(particlePoca().T(),hdir);
 //TODO - look at the BTrk version (TrkMomCalc)
-
+      // derviatives of TOCA and DOCA WRT particle trajectory parameters
       // no t0 dependence, DOCA is purely geometric
-      dDdP_[KTLine::d0_] = ..
-      dDdP_[KTLine::cost_] = ...;
-      dDdP_[KTLine::phi0_] = ...
-      dDdP_[KTLine::z0_] = ...
+      float ktlphi = ktline.dir().Phi(); // local azimuth of helix
+      float lphi = tline.dir().Phi(); // line azimuth
+      float d = sqrt((-1*ktline.d0()*-1*ktline.d0()) + (ktline.z0()*ktline.z0()))
+      dDdP_[KTLine::d0_] = 1/(2*d);
+      dDdP_[KTLine::cost_] = 0;
+      dDdP_[KTLine::phi0_] = 0; //cos^2+sin^2 = 1 so phi0 factors out.
+      dDdP_[KTLine::z0_] = 1/(2*d);
 
       // no spatial dependence, DT is purely temporal
       dTdP_[KTLine::t0_] = 1.0; // time is 100% correlated
