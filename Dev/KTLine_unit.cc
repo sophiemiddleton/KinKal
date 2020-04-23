@@ -1,4 +1,4 @@
-// 
+//
 // test basic functions of the KTLine TTraj class
 //
 #include "KinKal/ktlineix.hh"
@@ -84,10 +84,10 @@ int main(int argc, char **argv) {
   };
 
   int long_index =0;
-  while ((opt = getopt_long_only(argc, argv,"", 
+  while ((opt = getopt_long_only(argc, argv,"",
 	  long_options, &long_index )) != -1) {
     switch (opt) {
-      case 'm' : mom = atof(optarg); 
+      case 'm' : mom = atof(optarg);
 		 break;
       case 'c' : cost = atof(optarg);
 		 break;
@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
 		 break;
       case 'y' : By = atof(optarg);
 		 break;
-      default: print_usage(); 
+      default: print_usage();
 	       exit(EXIT_FAILURE);
     }
   }
@@ -121,21 +121,22 @@ int main(int argc, char **argv) {
   Vec3 bnom(0.0,By,1.0);
   Vec4 origin(0.0,0.0,oz,ot);
   float sint = sqrt(1.0-cost*cost);
-  Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass); //TODO - check
+  Mom4 momv(0,1000,0); //TODO - check---->
+  //This is how we will send in the momentum (this test is a comsic of energy 1GeV/c coming straight down)
   KTLine ktline(origin,momv,icharge,bnom);
   Mom4 testmom;
   ktline.momentum(ot,testmom);
   cout << "KTLine with momentum " << testmom << " position " << origin << " has parameters: " << ktline << endl;
   Vec3 vel;
-  ktline.velocity(ot,vel);
+  ktline.velocity(ot,vel); //TODO - velocity needs a speed, we need to set speed!
   double dot = vel.Dot(testmom)/CLHEP::c_light;
   cout << "velocity dot mom = " << dot << endl;
   cout << "momentum beta =" << momv.Beta() << " ktline beta = " << ktline.beta() << endl;
   Vec3 mdir;
   ktline.direction(ot,mdir);
-  // create the helix at tmin and tmax 
+  // create the helix at tmin and tmax
   Mom4 tmom;
-  Vec4 tpos; 
+  Vec4 tpos;
   ktline.momentum(tmax,tmom);
   tpos.SetE(tmax);
   ktline.position(tpos);
@@ -143,7 +144,7 @@ int main(int argc, char **argv) {
   ktline.momentum(tmin,tmom);
   tpos.SetE(tmin);
   ktline.position(tpos);
-  ktlineix ktlinemin(tpos,tmom,icharge,bnom); //TODO 
+  ktlineix ktlinemin(tpos,tmom,icharge,bnom); //TODO
 
   cout << "KTLine at tmax has parameters : " << ktlinemax << endl;
   cout << "KTLine at tmin has parameters : " << ktlinemin << endl;
@@ -155,21 +156,21 @@ int main(int argc, char **argv) {
 // create Canvase
   TCanvas* hcan = new TCanvas("hcan","KTLine",1000,1000);
 //TPolyLine to graph the result
-  TPolyLine3D* hel = new TPolyLine3D(nsteps+1);
+  TPolyLine3D* lin = new TPolyLine3D(nsteps+1);
   Vec4 hpos;
   for(int istep=0;istep<nsteps+1;++istep){
   // compute the position from the time
     hpos.SetE(tmin + tstep*istep);
-    ktline.position(hpos);
+    ktline.position(hpos); //TODO - check this works!!
     // add these positions to the TPolyLine3D
-    hel->SetPoint(istep, hpos.X(), hpos.Y(), hpos.Z());
+    lin->SetPoint(istep, hpos.X(), hpos.Y(), hpos.Z());
   }
   // draw the helix
   if(icharge > 0)
-    hel->SetLineColor(kBlue);
+    lin->SetLineColor(kBlue);
   else
-    hel->SetLineColor(kRed);
-  hel->Draw();
+    lin->SetLineColor(kRed);
+  lin->Draw();
 
   // draw the origin and axes
   TAxis3D* rulers = new TAxis3D();
@@ -202,7 +203,7 @@ int main(int argc, char **argv) {
   TLegend* leg = new TLegend(0.8,0.8,1.0,1.0);
   char title[80];
   snprintf(title,80,"KTLine, q=%1i, mom=%3.1g MeV/c",icharge,mom);
-  leg->AddEntry(hel,title,"L");
+  leg->AddEntry(lin,title,"L");
   snprintf(title,80,"Ref. Momentum, t=%4.2g ns",ot);
   leg->AddEntry(mref.arrow,title,"L");
   snprintf(title,80,"Start Momentum, t=%4.2g ns",ot+tmin);
@@ -211,7 +212,7 @@ int main(int argc, char **argv) {
   leg->AddEntry(mend.arrow,title,"L");
   leg->Draw();
 
-  // create a TLine near this helix, and draw it and the TPoca vector
+  // create a TLine near this KTLine, and draw it and the TPoca vector
   Vec3 pos, dir;
   ktline.position(ltime,pos);
   ktline.direction(ltime,dir);
@@ -249,8 +250,7 @@ int main(int argc, char **argv) {
 
   snprintf(title,80,"KTLine_m%3.1f_p%3.2f_q%i.root",pmass,mom,icharge);
   cout << "Saving canvas to " << title << endl;
-  hcan->SaveAs(title); 
+  hcan->SaveAs(title);
 
   exit(EXIT_SUCCESS);
 }
-

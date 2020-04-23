@@ -15,16 +15,16 @@ namespace KinKal {
     // Transform into the system where Z is along the Bfield.
     Vec4 pos(pos0);
     Mom4 mom(mom0);
-    
+
     // compute some simple useful parameters
-    double pt = mom.Pt(); 
+    double pt = mom.Pt();
     double phibar = mom.Phi();
 
     //TODO - what do we need in Line class here?
   }
 
   KTLine::KTLine PDATA const& pdata, double mass, int charge, double bnom, TRange const& range) : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range) {}
-  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range) : 
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range) :
     TTraj(range), KInter(mass,charge), pars_(pdata), bnom_(bnom) {}
 
 /* KTLine inherits from KInter but we also want it be an instance of KKTrk, for that we need:
@@ -44,14 +44,7 @@ namespace KinKal {
       double energy(float time) const; -->KTLine.hh
       void rangeInTolerance(TRange& range, BField const& bfield, double tol);-->this KTLine class
       PDATA const& params() const;
-*/    
-
-  double KTLine::momentumVar(float time) const {
-    //TODO
-    PDATA::DVEC dMomdP(0.0,  0.0, 0.0 ,0.0 , 0.0);
-    dMomdP *= mass()/(pbar()*mbar());
-    return ROOT::Math::Similarity(dMomdP,params().covariance());
-  }
+*/
 
   void KTLine::momentum(double tval, Mom4& mom) const{
    mom.SetPx(mom()*dir().x());
@@ -61,22 +54,17 @@ namespace KinKal {
   }
 
  void KTLine::velocity(double tval,Vec3& vel) const{//TODO - do we need thins?
-    Mom4 mom;
-    momentum(tval,mom);
-    vel = mom.Vect()*(CLHEP::c_light*fabs(Q()/ebar()));
-    if(needsrot_)vel = brot_(vel);
+    vel = dir()*speed();
   }
 
-/*  
+/*
 
 The effects for changes in 2 perpendicular directions (theta1 = theta and
 theta2 = phi()*sin(theta) can sometimes be added, as scattering in these
-are uncorrelated. These axes are track specific. as cosmics are not always coming along the same track direction it is necessary to have difference parameterization than that used for the helixa case. 
+are uncorrelated. These axes are track specific. as cosmics are not always coming along the same track direction it is necessary to have difference parameterization than that used for the helixa case.
 
 */
   void KTLine::dirVector(MDir mdir,double tval,Vec3& unit) const {
-    double phival = phi(time); // azimuth at this point
-    double norm = 1.0/copysign(pbar(),mbar_); // sign matters!
     switch ( mdir ) {
       case theta1: // purely plar change theta 1 = theta
 	      unit.SetX(-1*cosTheta()*sinPhi());
@@ -107,12 +95,12 @@ are uncorrelated. These axes are track specific. as cosmics are not always comin
     switch ( mdir ) {
       case theta1:
 	      // polar bending: only momentum and position are unchanged
-	      pder[cost_] = 1; 
+	      pder[cost_] = 1;
 	      pder[d0_] = 0;
 	      pder[phi0_] = 0;
 	      pder[z0_] = (-1*l/sinTheta());
 	      pder[t0_] = dt;
-	      
+
 	      break;
       case theta2:
 	      // change in phi0*costheta
@@ -121,7 +109,7 @@ are uncorrelated. These axes are track specific. as cosmics are not always comin
 	      pder[phi0_] = -1/sinTheta();
 	      pder[z0_] = d0()*(1/sinTheta()*tanTheta());
 	      pder[t0_] = dt;
-    
+
 	      break;
       case momdir:
 	      // fractional momentum change: position and direction are unchanged
@@ -148,7 +136,7 @@ are uncorrelated. These axes are track specific. as cosmics are not always comin
     // truncate the range if necessary
     if(dt < brange.range())brange.high() = brange.low() + dt;
   }
- 
+
     void KTLine::print(std::ostream& ost, int detail) const {
     ost << " KTLine " <<  range() << " parameters: ";
     for(size_t ipar=0;ipar < KTLine::npars_;ipar++){

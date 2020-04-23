@@ -1,5 +1,5 @@
-// 
-// test derivatives of the KTLine TTraj class
+//
+// Test derivatives of the KTLine TTraj class
 //
 #include "KinKal/KTLine.hh"
 
@@ -64,10 +64,10 @@ int main(int argc, char **argv) {
   };
 
   int long_index =0;
-  while ((opt = getopt_long_only(argc, argv,"", 
+  while ((opt = getopt_long_only(argc, argv,"",
 	  long_options, &long_index )) != -1) {
     switch (opt) {
-      case 'm' : mom = atof(optarg); 
+      case 'm' : mom = atof(optarg);
 		 break;
       case 'c' : cost = atof(optarg);
 		 break;
@@ -89,16 +89,16 @@ int main(int argc, char **argv) {
 		 break;
       case 'y' : By = atof(optarg);
 		 break;
-      default: print_usage(); 
+      default: print_usage();
 	       exit(EXIT_FAILURE);
     }
   }
   Vec3 bnom(0.0,By,1.0);
   Vec4 origin(0.0,0.0,oz,ot);
   float sint = sqrt(1.0-cost*cost);
-  // reference helix
+
   pmass = masses[imass];
-  Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass); //TODO
+  Mom4 momv(mom*sint*sin(phi),mom*sint*cos(phi),mom*cost,pmass); //TODO
   KTLine ref_ktline(origin,momv,icharge,bnom); //TODO check
   cout << "Reference " << ref_ktline << endl;
   Vec4 refpos4;
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
 
     // scan range of change
     for(int id=0;id<ndel;++id){
-      double delta = dmin + del*id; 
+      double delta = dmin + del*id;
 //      cout << "Delta = " << delta << endl;
       //  compute exact altered params
       Vec3 newmom = refmom.Vect() + delta*dmomdir*mom;
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
     dhcan[idir]->cd(5);
     z0graph[idir]->Draw("AC*");
     dhcan[idir]->cd(6);
-    
+
     dhcan[idir]->Write();
 
     snprintf(name,80,"dm%s",KInter::directionName(tdir).c_str());
@@ -274,4 +274,3 @@ int main(int argc, char **argv) {
   ktline_deriv.Close();
   return 0;
 }
-

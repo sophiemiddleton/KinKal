@@ -48,20 +48,46 @@
 using namespace MatEnv;
 using namespace KinKal;
 using namespace std;
-// avoid confusion with root
+
+// avoid confusion with root:
 using KinKal::TLine;
-typedef KinKal::PKTraj<KTLine> PLine; //Note: set up a Line based trajectory
-typedef KinKal::KKTrk<KTLine> KKTRK; //Note Set up a Line based Trk
-// ugly global variables
+KTLine KTRAJ;
+typedef KinKal::PKTraj<KTRAJ> PLine; //Note: set up a Line based trajectory
+typedef KinKal::KKTrk<KTRAJ> KKTRK; //Note Set up a Line based Trk
+typedef shared_ptr<KKConfig> KKCONFIGPTR;
+typedef THit<KTRAJ> THIT;
+typedef std::shared_ptr<THIT> THITPTR;
+typedef DXing<KTRAJ> DXING;
+typedef std::shared_ptr<DXING> DXINGPTR;
+typedef StrawHit<KTRAJ> STRAWHIT;
+typedef std::shared_ptr<STRAWHIT> STRAWHITPTR;
+typedef LightHit<KTRAJ> LIGHTHIT;
+typedef std::shared_ptr<LIGHTHIT> LIGHTHITPTR;
+typedef StrawXing<KTRAJ> STRAWXING;
+typedef shared_ptr<STRAWXING> STRAWXINGPTR;
+typedef vector<THITPTR> THITCOL;
+typedef vector<DXINGPTR> DXINGCOL;
+typedef Residual<KTRAJ> RESIDUAL;
+typedef TPoca<PKTRAJ,TLine> TPOCA;
+typedef std::chrono::high_resolution_clock Clock;
+
+
+
+
+// ugly global variables - mostly copied from Fit Unit Test:
 double zrange(3000.0), rmax(800.0); // tracker dimension
 double sprop(0.8*CLHEP::c_light), sdrift(0.065), rstraw(2.5);
-double ambigdoca(0.5);// minimum doca to set ambiguity
+double ambigdoca(-1.0);// minimum doca to set ambiguity
 double sigt(3); // drift time resolution in ns
 double tbuff(0.1);
+float ineff(0.1); // hit inefficiency
 int iseed(124223);
 unsigned nhits(40);
 double escale(5.0);
-vector<double> sigmas = { 3.0, 3.0, 3.0, 3.0, 0.1, 3.0}; // base sigmas for parameters (per hit!)
+vector<float> sigmas = { 3.0, 3.0, 3.0, 3.0, 0.1, 3.0}; // base sigmas for parameters (per hit!)
+bool simmat(true), fitmat(true), lighthit(true), updatehits(false), addbf(false);
+  // time hit parameters
+float ttvar(0.25), twvar(100.0), shmax(80.0), vlight(0.8*CLHEP::c_light), clen(200.0);
 // define the BF
 Vec3 bnom(0.0,0.0,1.0);
 double Bgrad(0.0), By(0.0);
@@ -81,9 +107,26 @@ struct LinePars{
   }
 };
 
+struct LinePars{
+  Float_t pars_[KTRAJ::NParams()];
+  static std::string leafnames() {
+    std::string names;
+    for(size_t ipar=0;ipar<KTRAJ::NParams();ipar++){
+      names +=KTRAJ::paramName(static_cast<KTRAJ::ParamIndex>(ipar)) + string("/f");
+      if(ipar < KTRAJ::NParams()-1)names += ":";
+    }
+    return names;
+  }
+};
 
-KinKal::TLine GenerateStraw(PLine const& traj, double htime) {
-  // start with the true helix position at this time
+struct KKHitInfo {
+  Float_t resid_, residvar_, chiref_, chifit_;
+  static std::string leafnames() { return std::string("resid/f:residvar/f:chiref/f:chifit/f"); }
+};
+
+//This is taken from the Helix Unit Fit
+KinKal::TLine GenerateStraw(PKTRAJ  const& traj, double htime) {
+  // start with the true ktline position at this time
   Vec4 hpos; hpos.SetE(htime);
   traj.position(hpos);
   Vec3 hdir; traj.direction(htime,hdir);
@@ -118,16 +161,139 @@ KinKal::TLine GenerateStraw(PLine const& traj, double htime) {
   return TLine(mpos,vprop,tmeas,trange); //TODO - does this constructor work?
 }
 
-void createSeed(KTLine & seed){ //KTLine
+void createSeed(KTRAJ& seed){
   auto& seedpar = seed.params();
   seedpar.covariance() = ROOT::Math::SMatrixIdentity();
-  for(unsigned ipar=0;ipar < 6; ipar++){
+  for(unsigned ipar=0;ipar < 5; ipar++){
     double perr = sigmas[ipar]*escale/sqrt(nhits);
-    seedpar.parameters()[ipar] += TR->Gaus(0.0,perr);
+    seedpar.parameters()[ipar] += TR->Gaus(0.0,perr);//TODO - why?
     seedpar.covariance()[ipar][ipar] *= perr*perr;
   }
 }
-//TODO - what is PLine?
+//This function i copied from the Helix version, do we need it? What does it do?
+void extendTraj(PKTRAJ& plhel,double htime) {
+  if(Bgrad != 0.0){
+    auto const& back = plhel.back();
+    float tend = back.range().low();
+    Vec3 vel;
+    back.velocity(htime,vel);
+    float tstep = 0.0001*back.bnom().R()*zrange/(Bgrad*vel.Z()); // how far before BField changes by 1/10000
+    while(tend < htime-tstep){
+      tend += tstep;
+      Vec3 bf;
+      Vec4 pos; pos.SetE(tend);
+      Mom4 mom;
+      plhel.momentum(tend,mom);
+      plhel.position(pos);
+      BF->fieldVect(bf,pos.Vect());
+      KTRAJ newend(pos,mom,plhel.charge(),bf,TRange(tend,plhel.range().high()));
+      plhel.append(newend);
+    }
+  }
+  
+  double createHits(PKTRAJ& plhel,StrawMat const& smat, THITCOL& thits, DXINGCOL& dxings) {
+    //  cout << "Creating " << nhits << " hits " << endl;
+    // divide time range
+    double dt = (plhel.range().range()-2*tbuff)/(nhits-1);
+    double desum(0.0);
+    double dscatsum(0.0);
+    Vec3 bsim;
+    for(size_t ihit=0; ihit<nhits; ihit++){
+      double htime = tbuff + plhel.range().low() + ihit*dt;
+  // extend the trajectory in the BField
+      extendTraj(plhel,htime);
+  // create the hit at this time
+      auto tline = GenerateStraw(plhel,htime);
+      TPoca<PKTRAJ,TLine> tp(plhel,tline);
+      LRAmbig ambig(LRAmbig::null);
+      if(fabs(tp.doca())> ambigdoca) ambig = tp.doca() < 0 ? LRAmbig::left : LRAmbig::right;
+      // construct the hit from this trajectory
+      auto sxing = std::make_shared<STRAWXING>(tp,smat);
+      if(TR->Uniform(0.0,1.0) > ineff){
+        thits.push_back(std::make_shared<STRAWHIT>(*BF, tline, d2t,sxing,ambig));
+      } else {
+        dxings.push_back(sxing);
+      }
+      // compute material effects and change trajectory accordingly
+      if(simmat){
+        auto const& endpiece = plhel.nearestPiece(tp.particleToca());
+        double mom = endpiece.momentum(tp.particleToca());
+        Mom4 endmom;
+        endpiece.momentum(tp.particleToca(),endmom);
+        Vec4 endpos; endpos.SetE(tp.particleToca());
+        endpiece.position(endpos);
+        std::array<float,3> dmom = {0.0,0.0,0.0}, momvar {0.0,0.0,0.0};
+        sxing->momEffects(plhel,TDir::forwards, dmom, momvar);
+        for(int idir=0;idir<=KInter::theta2; idir++) {
+  	auto mdir = static_cast<KInter::MDir>(idir);
+  	double momsig = sqrt(momvar[idir]);
+  	double dm;
+  	// generate a random effect given this variance and mean.  Note momEffect is scaled to momentum
+  	switch( mdir ) {
+  	  case KinKal::KInter::theta1: case KinKal::KInter::theta2 :
+  	    dm = TR->Gaus(dmom[idir],momsig);
+  	    dscatsum += dm;
+  	    break;
+  	  case KinKal::KInter::momdir :
+  	    dm = std::min(0.0,TR->Gaus(dmom[idir],momsig));
+  	    desum += dm*mom;
+  	    break;
+  	  default:
+  	    throw std::invalid_argument("Invalid direction");
+  	}
+  //	cout << "mom change dir " << KInter::directionName(mdir) << " mean " << dmom[idir]  << " +- " << momsig << " value " << dm  << endl;
+  	Vec3 dmvec;
+  	endpiece.dirVector(mdir,tp.particleToca(),dmvec);
+  	dmvec *= dm*mom;
+  	endmom.SetCoordinates(endmom.Px()+dmvec.X(), endmom.Py()+dmvec.Y(), endmom.Pz()+dmvec.Z(),endmom.M());
+        }
+  	// terminate if there is catastrophic energy loss
+        if(fabs(desum)/mom > 0.1)break;
+        // generate a new piece and append
+        BF->fieldVect(bsim,endpos.Vect());
+        KTRAJ newend(endpos,endmom,endpiece.charge(),bsim,TRange(tp.particleToca(),plhel.range().high()));
+  //      newend.print(cout,1);
+        plhel.append(newend);
+      }
+    }
+    if(lighthit && TR->Uniform(0.0,1.0) > ineff){
+      // create a LightHit at the end, axis parallel to z
+      // first, find the position at showermax.
+      Vec3 shmpos, hend, lmeas;
+      float cstart = plhel.range().high() + 0.5;
+      plhel.position(cstart,hend);
+      float ltime = cstart + shmax/plhel.speed(cstart);
+      plhel.position(ltime,shmpos); // true position at shower-max
+      // smear the x-y position by the transverse variance.
+      lmeas.SetX(TR->Gaus(shmpos.X(),sqrt(twvar)));
+      lmeas.SetY(TR->Gaus(shmpos.Y(),sqrt(twvar)));
+      // set the z position to the sensor plane (end of the crystal)
+      lmeas.SetZ(hend.Z()+clen);
+      // set the measurement time to correspond to the light propagation from showermax, smeared by the resolution
+      float tmeas = TR->Gaus(ltime+(lmeas.Z()-shmpos.Z())/vlight,sqrt(ttvar));
+      // create the ttraj for the light propagation
+      Vec3 lvel(0.0,0.0,vlight);
+      TRange trange(cstart,cstart+clen/vlight);
+      TLine lline(lmeas,lvel,tmeas,trange);
+      // then create the hit and add it; the hit has no material
+      thits.push_back(std::make_shared<LIGHTHIT>(lline, ttvar, twvar));
+   // test
+  //    cout << "cstart " << cstart << " pos " << hend << endl;
+  //    cout << "shmax " << ltime << " pos " << shmpos  << endl;
+  //    Vec3 lhpos;
+  //    lline.position(tmeas,lhpos);
+  //    cout << "tmeas " <<  tmeas  << " pos " << lmeas  << " llinepos " << lhpos << endl;
+  //    RESIDUAL lres;
+  //    thits.back()->resid(plhel,lres);
+  //    cout << "LightHit " << lres << endl;
+  //    TPOCA tpl(plhel,lline);
+  //    cout <<"Light TPOCA ";
+  //    tpl.print(cout,2);
+    }
+
+  //  cout << "Total energy loss " << desum << " scattering " << dscatsum << endl;
+    return desum;
+  }
 double createHits(PLine& plhel,StrawMat const& smat, std::vector<StrawHit>& shits,bool addmat) {
   //  cout << "Creating " << nhits << " hits " << endl;
   // divide time range
@@ -542,7 +708,7 @@ int main(int argc, char **argv) {
 	    cout << " Hit status " << ihit->poca().status() << " doca " << ihit->poca().doca() << ihit->refResid() << endl;
 	  } else if(imhit != 0){
 	    cout << " Hit status " << imhit->hit().poca().status() << " doca " << imhit->hit().poca().doca() << imhit->hit().refResid() << endl;
-	    cout << " Mat forward status " << imhit->mat().status(TDir::forwards) 
+	    cout << " Mat forward status " << imhit->mat().status(TDir::forwards)
 	      << " backwards status " << imhit->mat().status(TDir::backwards) <<  " effect " << imhit->mat().effect().parameters() << endl;
 	  } else
 	    cout << endl;
