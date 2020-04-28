@@ -1,33 +1,5 @@
-#include "KinKal/KTLine.hh"
-#include "KinKal/BField.hh"
-#include "Math/AxisAngle.h"
-#include <math.h>
-#include <stdexcept>
-
-using namespace std;
-using namespace ROOT::Math;
-
-namespace KinKal {
-  //Note : This class inherits a lot from TLine. So, I think we dont need all that LHelix has here as its defined in TLine
-  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) : KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
-  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range) : TTraj(range), KInter(mom0.M(),charge), bnom_(bnom), needsrot_(false) {
-
-    // Transform into the system where Z is along the Bfield.
-    Vec4 pos(pos0);
-    Mom4 mom(mom0);
-
-    // compute some simple useful parameters
-    double pt = mom.Pt();
-    double phibar = mom.Phi();
-
-    //TODO - what do we need in Line class here?
-  }
-
-  KTLine::KTLine PDATA const& pdata, double mass, int charge, double bnom, TRange const& range) : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range) {}
-  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range) :
-    TTraj(range), KInter(mass,charge), pars_(pdata), bnom_(bnom) {}
-
-/* KTLine inherits from KInter but we also want it be an instance of KKTrk, for that we need:
+/*
+KTLine inherits from KInter but we also want it be an instance of KKTrk, for that we need:
 
       void position(Vec4& pos) const; -->TLine
       void position(float time, Vec3& pos) const; -->TLine
@@ -44,16 +16,48 @@ namespace KinKal {
       double energy(float time) const; -->KTLine.hh
       void rangeInTolerance(TRange& range, BField const& bfield, double tol);-->this KTLine class
       PDATA const& params() const;
+
+    s Middleton 2020 
+
 */
 
+#include "KinKal/KTLine.hh"
+#include "KinKal/BField.hh"
+#include "Math/AxisAngle.h"
+#include <math.h>
+#include <stdexcept>
+
+using namespace std;
+using namespace ROOT::Math;
+
+namespace KinKal {
+  //Note : This class inherits a lot from TLine. So, I think we dont need all that LHelix has here as its defined in TLine
+  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, double mass, int charge, double bnom, TRange const& range)
+  : KTLine(pos0, mom0, mass, mass, charge, Vec3(0.0,0.0,bnom), range) {
+  }
+  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, double mass, int charge, Vec3 const& bnom, TRange const& range)
+  : TTraj(range), KInter(mom0.M(),charge), bnom_(bnom), mass_(mass), needsrot_(false) {
+    // Transform into the system where Z is along the Bfield.
+    Vec4 pos(pos0);
+    Mom4 mom(mom0);
+  }
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
+  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range) {}
+
+
+  KTLine::KTLine PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
+  : KTLine(pdata, mass, charge, Vec3( 0.0, 0.0, bnom), range) {}
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range)
+  :TTraj(range), KInter(mass, charge), pars_(pdata), bnom_(bnom) {}
+
   void KTLine::momentum(double tval, Mom4& mom) const{
-   mom.SetPx(mom()*dir().x());
-   mom.SetPy(mom()*dir().y());
-   mom.SetPz(mom()*dir().z());
+   mom.SetPx(momentum(tval) *dir().x());
+   mom.SetPy(momentum(tval)  *dir().y());
+   mom.SetPz(momentum(tval)  *dir().z());
    mom.SetM(mass_);
   }
 
- void KTLine::velocity(double tval,Vec3& vel) const{//TODO - do we need thins?
+ void KTLine::velocity(double tval,Vec3& vel) const{
     vel = dir()*speed();
   }
 
@@ -61,7 +65,9 @@ namespace KinKal {
 
 The effects for changes in 2 perpendicular directions (theta1 = theta and
 theta2 = phi()*sin(theta) can sometimes be added, as scattering in these
-are uncorrelated. These axes are track specific. as cosmics are not always coming along the same track direction it is necessary to have difference parameterization than that used for the helixa case.
+are uncorrelated. These axes are track specific. as cosmics are not always
+coming along the same track direction it is necessary to have difference
+parameterization than that used for the helix case.
 
 */
   void KTLine::dirVector(MDir mdir,double tval,Vec3& unit) const {
@@ -72,18 +78,18 @@ are uncorrelated. These axes are track specific. as cosmics are not always comin
 	      unit.SetZ(sinTheta());
 	      unit *= norm;
 	    break;
-        case theta2: // purely transverse - theta2 = -phi()*sin(theta)
+        case theta2: // purely transverse theta2 = -phi()*sin(theta)
 	        unit.SetX(-cosPhi());
           unit.SetY(sinPhi());
           unit.SetZ(0.0);
 	    break;
         case momdir: // along momentum: check.
-	        direction(time,unit); //TODO - is this right?
+	        direction(time,unit);
 	    break;
         default:
 	        throw std::invalid_argument("Invalid direction");
     }
-    if(needsrot_) unit = brot_(unit);
+    if(needsrot_) unit = brot_(unit); //TODO - what is this used for?
   }
 
 // derivatives of momentum projected along the given basis WRT the 5 parameters

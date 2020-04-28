@@ -11,14 +11,14 @@ namespace KinKal {
     "Azimuth of POCA"
     "Z at POCA",
     "Cos Theta",
-    "Time at POCA"}; 
+    "Time at POCA"};
 
   vector<string> TLine::paramNames_ = {
   "D0","Phi0","Z0","CTheta","Time0"};
 
   vector<string> KTLine::paramUnits_ = {
   "mm","radians","mm","","ns"};
-  
+
   std::vector<std::string> const& TLine::paramUnits() { return paramUnits_; }
   std::vector<std::string> const& TLine::paramNames() { return paramNames_; }
   std::vector<std::string> const& TLine::paramTitles() { return paramTitles_; }
@@ -28,8 +28,9 @@ namespace KinKal {
   std::string const& TLine::paramUnit(ParamIndex index) { return paramUnits_[static_cast<size_t>(index)];}
 
   TLine::TLine(Vec4 const& pos0, Vec3 const& svel, TRange const& range,bool forcerange) : TLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {}
-  TLine::TLine(Vec3 const& pos0, Vec3 const& svel, float tmeas, TRange const& range, bool forcerange)  : trange_(range), 
+  TLine::TLine(Vec3 const& pos0, Vec3 const& svel, float tmeas, TRange const& range, bool forcerange)  : trange_(range),
   speed_(sqrt(svel.Mag2())), pos0_(pos0), dir_(svel.Unit()), forcerange_(forcerange) {
+    
     static const Vec3 zdir(0.0,0.0,1.0);
     float zddot = zdir.Dot(dir_);
     param(cost_) = zddot;

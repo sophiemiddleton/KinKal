@@ -1,6 +1,11 @@
-//
-// test basic functions of the KTLine TTraj class
-//
+/*
+Test basic functions of the KTLine TTraj class.
+
+Based on that for LHelix.
+
+S Middleton 2020
+
+*/
 #include "KinKal/ktlineix.hh"
 #include "KinKal/TLine.hh"
 #include "KinKal/TPoca.hh"
@@ -123,7 +128,7 @@ int main(int argc, char **argv) {
   float sint = sqrt(1.0-cost*cost);
   Mom4 momv(0,1000,0); //TODO - check---->
   //This is how we will send in the momentum (this test is a comsic of energy 1GeV/c coming straight down)
-  KTLine ktline(origin,momv,icharge,bnom);
+  KTLine ktline(origin,momv,pmass,icharge,bnom);
   Mom4 testmom;
   ktline.momentum(ot,testmom);
   cout << "KTLine with momentum " << testmom << " position " << origin << " has parameters: " << ktline << endl;
@@ -140,28 +145,28 @@ int main(int argc, char **argv) {
   ktline.momentum(tmax,tmom);
   tpos.SetE(tmax);
   ktline.position(tpos);
-  ktlineix ktlinemax(tpos,tmom,icharge,bnom); //TODO
+  KTLine ktlinemax(tpos,tmom,pmass,icharge,bnom);
   ktline.momentum(tmin,tmom);
   tpos.SetE(tmin);
   ktline.position(tpos);
-  ktlineix ktlinemin(tpos,tmom,icharge,bnom); //TODO
+  KTLine ktlinemin(tpos,tmom,pmass,icharge,bnom);
 
   cout << "KTLine at tmax has parameters : " << ktlinemax << endl;
   cout << "KTLine at tmin has parameters : " << ktlinemin << endl;
 
-// now graph this as a polyline over the specified time range.
+  // now graph this as a polyline over the specified time range.
   double tstep = 0.1; // nanoseconds
   double trange = tmax-tmin;
   int nsteps = (int)rint(trange/tstep);
-// create Canvase
+  // create TCanvas
   TCanvas* hcan = new TCanvas("hcan","KTLine",1000,1000);
-//TPolyLine to graph the result
+  //TPolyLine to graph the result
   TPolyLine3D* lin = new TPolyLine3D(nsteps+1);
   Vec4 hpos;
   for(int istep=0;istep<nsteps+1;++istep){
-  // compute the position from the time
+    // compute the position from the time
     hpos.SetE(tmin + tstep*istep);
-    ktline.position(hpos); //TODO - check this works!!
+    ktline.position(hpos);
     // add these positions to the TPolyLine3D
     lin->SetPoint(istep, hpos.X(), hpos.Y(), hpos.Z());
   }
@@ -218,7 +223,7 @@ int main(int argc, char **argv) {
   ktline.direction(ltime,dir);
   // rotate the direction
   double ktline_phi = atan2(dir.Y(),dir.X());
-  double pphi = ktline_phi + M_PI/2.0;
+  double pphi = ktline_phi + M_PI/2.0; //TODO - check we have the directions correct
   Vec3 pdir(cos(pphi),sin(pphi),0.0);
   double pspeed = CLHEP::c_light*vprop; // vprop is relative to c
   Vec3 pvel = pdir*pspeed;

@@ -1,6 +1,8 @@
-//
-// Test derivatives of the KTLine TTraj class
-//
+/*
+ Test derivatives of the KTLine TTraj class.
+
+ S Middleton 2020
+*/
 #include "KinKal/KTLine.hh"
 
 #include <iostream>
@@ -98,8 +100,8 @@ int main(int argc, char **argv) {
   float sint = sqrt(1.0-cost*cost);
 
   pmass = masses[imass];
-  Mom4 momv(mom*sint*sin(phi),mom*sint*cos(phi),mom*cost,pmass); //TODO
-  KTLine ref_ktline(origin,momv,icharge,bnom); //TODO check
+  Mom4 momv(mom*sint*sin(phi),mom*sint*cos(phi),mom*cost,pmass); //Derived from direction*mom
+  KTLine ref_ktline(origin,momv,pmass,icharge,bnom);
   cout << "Reference " << ref_ktline << endl;
   Vec4 refpos4;
   refpos4.SetE(ttest);
@@ -133,9 +135,8 @@ int main(int argc, char **argv) {
     KInter::MDir tdir =static_cast<KInter::MDir>(idir);
     Vec3 dmomdir;
     ref_ktline.dirVector(tdir,ttest,dmomdir);
-//    cout << "testing direction " << KInter::directionName(tdir) << endl;
-    // parameter change
 
+    // parameter change
     d0graph[idir] = new TGraph(ndel);
     d0graph[idir]->SetTitle("d_{0};exact;1st derivative");
     costgraph[idir] = new TGraph(ndel);
@@ -159,30 +160,25 @@ int main(int argc, char **argv) {
     // scan range of change
     for(int id=0;id<ndel;++id){
       double delta = dmin + del*id;
-//      cout << "Delta = " << delta << endl;
       //  compute exact altered params
       Vec3 newmom = refmom.Vect() + delta*dmomdir*mom;
       Mom4 momv(newmom.X(),newmom.Y(),newmom.Z(),pmass);
-      KTLine xktline(refpos4,momv,icharge,bnom);
+      KTLine xktline(refpos4,momv,pmass,icharge,bnom);
       // now, compute 1st order change in parameters
       KTLine::PDER pder;
       ref_ktline.momDeriv(tdir,ttest,pder);
-//      cout << "derivative vector" << pder << endl;
+      cout << "derivative vector" << pder << endl;
       auto dvec = ref_ktline.params().parameters() + delta*pder;
       KTLine::PDATA pdata(dvec,ref_ktline.params().covariance());
       KTLine dktline(pdata,ref_ktline.mass(),ref_ktline.charge(),bnom);
-      // test
+
       Vec4 xpos, dpos;
       xpos.SetE(ttest);
       dpos.SetE(ttest);
       xktline.position(xpos);
       dktline.position(dpos);
-//      cout << " exa pos " << xpos << endl
-//      << " del pos " << dpos << endl;
       Mom4 dmom;
       dktline.momentum(ttest,dmom);
-//      cout << "Exact change" << xktline << endl;
-//      cout << "Derivative  " << dktline << endl;
       Vec4 gap = dpos - refpos4;
       gapgraph[idir]->SetPoint(id,delta,sqrt(gap.Vect().Mag2()));
       // parameter diff
@@ -192,7 +188,6 @@ int main(int argc, char **argv) {
       phi0graph[idir]->SetPoint(id,xktline.phi0()-ref_ktline.phi0(),dktline.phi0()-ref_ktline.phi0());
       z0graph[idir]->SetPoint(id,xktline.z0()-ref_ktline.z0(),dktline.z0()-ref_ktline.z0());
       // compare momenta after change
-      //
       Vec3 dxmom = momv.Vect() - refmom.Vect();
       Vec3 ddmom = dmom.Vect() - refmom.Vect();
       Vec3 changedir;
@@ -239,7 +234,7 @@ int main(int argc, char **argv) {
     dmomcan[idir]->Write();
   }
 
-// now spatial derivatives: these are used to constrain continuity between traj pieces
+  // now spatial derivatives: these are used to constrain continuity between traj pieces
   KTLine::PDER pder;
   ref_ktline.posDeriv(ttest,pder);
   Vec3 refpos, refdir;
