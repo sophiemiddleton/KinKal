@@ -98,7 +98,8 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       tline.position(sensPoca_[1]);
       // sign doca by angular momentum projected onto difference vector (same as helix)
       double lsign = tline.dir().Cross(ktdir).Dot(partPoca_[1].Vect()-partPoca_[0].Vect());
-      doca_ = copysign(doca,lsign);
+      float dsign = copysign(1.0,lsign);
+      doca_ = doca*dsign;
 
       // pre-compute some values needed for the derivative calculations
       Vec3 vdoca, ddir, hdir;

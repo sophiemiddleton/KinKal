@@ -167,12 +167,12 @@ void createSeed(KTRAJ& seed){
   seedpar.covariance() = ROOT::Math::SMatrixIdentity();
   for(unsigned ipar=0;ipar < 5; ipar++){
     double perr = sigmas[ipar]*escale/sqrt(nhits);
-    seedpar.parameters()[ipar] += TR->Gaus(0.0,perr);//TODO - why?
+    seedpar.parameters()[ipar] += TR->Gaus(0.0,perr);
     seedpar.covariance()[ipar][ipar] *= perr*perr;
   }
 }
 //This function i copied from the Helix version, do we need it? What does it do?
-void extendTraj(PKTRAJ& plhel,double htime) {
+/*void extendTraj(PKTRAJ& plhel,double htime) {
   if(Bgrad != 0.0){
     auto const& back = plhel.back();
     float tend = back.range().low();
@@ -182,7 +182,8 @@ void extendTraj(PKTRAJ& plhel,double htime) {
     while(tend < htime-tstep){
       tend += tstep;
       Vec3 bf;
-      Vec4 pos; pos.SetE(tend);
+      Vec4 pos;
+      pos.SetE(tend);
       Mom4 mom;
       plhel.momentum(tend,mom);
       plhel.position(pos);
@@ -190,10 +191,10 @@ void extendTraj(PKTRAJ& plhel,double htime) {
       KTRAJ newend(pos,mom,plhel.charge(),bf,TRange(tend,plhel.range().high()));
       plhel.append(newend);
     }
-  }
+  }*/
   //TODO - this needs to be editted for the KTLine
   double createHits(PKTRAJ& plhel,StrawMat const& smat, THITCOL& thits, DXINGCOL& dxings) {
-    //  cout << "Creating " << nhits << " hits " << endl;
+    cout << "Creating " << nhits << " hits " << endl;
     // divide time range
     double dt = (plhel.range().range()-2*tbuff)/(nhits-1);
     double desum(0.0);
