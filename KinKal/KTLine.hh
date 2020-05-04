@@ -45,7 +45,7 @@ namespace KinKal {
 
       // speed in mm/ns
       void print(std::ostream& ost, int detail) const override;
-      void rangeInTolerance(TRange& range, BField const& bfield, double tol) const;
+      void rangeInTolerance(TRange& range, BField const& bfield, double tol) const {};//infinity for striaght line
 
       // local momentum direction basis
       virtual void dirVector(MDir dir,double time,Vec3& unit) const;

@@ -17,7 +17,7 @@ KTLine inherits from KInter but we also want it be an instance of KKTrk, for tha
       void rangeInTolerance(TRange& range, BField const& bfield, double tol);-->this KTLine class
       PDATA const& params() const;
 
-    s Middleton 2020 
+    s Middleton 2020
 
 */
 
@@ -125,22 +125,6 @@ parameterization than that used for the helix case.
 	    throw std::invalid_argument("Invalid direction");
         }
   }
-  }
-
-  //TODO - this function is copied from Helix. Might need adjusting.
-  void KTLine::rangeInTolerance(TRange& brange, BField const& bfield, double tol) const {
-    // precompute some factors
-    double fact = 0.5*sqrt(rad()*tol*bnom().R())/CLHEP::c_light;
-    // Limit to this traj's range
-    brange.high() = std::min(brange.high(),range().high());
-    // compute the BField difference in the middle of the range
-    Vec3 midpos,bvec;
-    position(brange.mid(),midpos);
-    bfield.fieldVect(bvec,midpos);
-    auto db = bvec-bnom();
-    double dt = fact/sqrt(db.R());
-    // truncate the range if necessary
-    if(dt < brange.range())brange.high() = brange.low() + dt;
   }
 
     void KTLine::print(std::ostream& ost, int detail) const {
