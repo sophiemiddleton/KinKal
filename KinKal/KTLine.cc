@@ -46,36 +46,25 @@ namespace KinKal {
 KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range)
-  : KInter(mom0.M(),charge),  TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0) {}
+  : TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0), charge_(charge) {}
 
-/*KTLine::KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range) : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range){}
-
-KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom,
-                 TRange const &trange, double speed) :  KInter(mass, charge), trange_(trange), pars_(pvec, pcov), bnom_(bnom), mass_(mass), spped_(speed)
-  {
-    dir_.SetXYZ(sinPhi0()*sinTheta(), -1*cosPhi0()*sinTheta(), cosTheta());
-    Mom3 momThree;
-    momThree.SetPxPyPz(dir_.x()*mass*betaGamma(), dir_.y()*mass*betaGamma(), dir_.z()*mass*betaGamma());
-    mom_.SetPxPyPzE(momThree.x(), momThree.y(), momThree.z(), mass);
-  }
-
-
-KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range, double speed)
+KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
   : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){} 
 
-  KTLine::KTLine( PDATA const& pdata, Vec3 dir, double mass, int charge, Vec3 const& bnom, TRange const& range)
-  : KInter(mass, charge), TLine(pdata), trange_(range), pars_(pdata), bnom_(bnom), mass_(mass)){
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range)
+  : TLine(pdata), trange_(range), bnom_(bnom), mass_(mass), charge_(charge), pars_(pdata){} 
 
-    dir_.SetXYZ(pars_.parameters()[index]
-
-  } 
-*/
+  string KTLine::trajName_("KTLine");  
+  string const& KTLine::trajName() { return trajName_; }
 
   void KTLine::momentum(double tval, Mom4& mom) const{
    mom.SetPx(momentumMag(tval)*dir().x());
    mom.SetPy(momentumMag(tval)*dir().y());
    mom.SetPz(momentumMag(tval)*dir().z());
    mom.SetM(mass_);
+  }
+  Mom4 KTLine::momentum(double tval) const{
+    return mom_;
   }
 
 /*

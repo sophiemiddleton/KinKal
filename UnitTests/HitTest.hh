@@ -46,30 +46,28 @@ using namespace KinKal;
 using namespace std;
 // avoid confusion with root
 using KinKal::TLine;
-typedef KinKal::PKTraj<LHelix> PLHelix;
-// define the typedefs: to change to a different trajectory implementation, just change this line
-typedef LHelix KTRAJ;
-typedef KinKal::PKTraj<KTRAJ> PKTRAJ;
-typedef THit<KTRAJ> THIT;
-typedef std::shared_ptr<THIT> THITPTR;
-typedef DXing<KTRAJ> DXING;
-typedef std::shared_ptr<DXING> DXINGPTR;
-typedef StrawHit<KTRAJ> STRAWHIT;
-typedef std::shared_ptr<STRAWHIT> STRAWHITPTR;
-typedef ScintHit<KTRAJ> SCINTHIT;
-typedef std::shared_ptr<SCINTHIT> SCINTHITPTR;
-typedef StrawXing<KTRAJ> STRAWXING;
-typedef std::shared_ptr<STRAWXING> STRAWXINGPTR;
-typedef std::vector<THITPTR> THITCOL;
-typedef vector<DXINGPTR> DXINGCOL;
-typedef Residual<KTRAJ::NParams()> RESIDUAL;
-
 
 void print_usage() {
   printf("Usage: HitTest  --momentum f --costheta f --azimuth f --particle i --charge i --lighthit i --zrange f --nhits i --hres f --seed i --ambigdoca f --ddoca f --By f --Bgrad f --simmat i\n");
 }
 
-int main(int argc, char **argv) {
+template <class KTRAJ>
+int HitTest(int argc, char **argv) {
+  typedef KinKal::PKTraj<KTRAJ> PKTRAJ;
+  typedef THit<KTRAJ> THIT;
+  typedef std::shared_ptr<THIT> THITPTR;
+  typedef DXing<KTRAJ> DXING;
+  typedef std::shared_ptr<DXING> DXINGPTR;
+  typedef StrawHit<KTRAJ> STRAWHIT;
+  typedef std::shared_ptr<STRAWHIT> STRAWHITPTR;
+  typedef ScintHit<KTRAJ> SCINTHIT;
+  typedef std::shared_ptr<SCINTHIT> SCINTHITPTR;
+  typedef StrawXing<KTRAJ> STRAWXING;
+  typedef std::shared_ptr<STRAWXING> STRAWXINGPTR;
+  typedef std::vector<THITPTR> THITCOL;
+  typedef vector<DXINGPTR> DXINGCOL;
+  typedef Residual<KTRAJ::NParams()> RESIDUAL;
+
   int opt;
   double mom(105.0);
   double masses[5]={0.511,105.66,139.57, 493.68, 938.0};
@@ -77,7 +75,7 @@ int main(int argc, char **argv) {
   double pmass;
   unsigned nhits(40);
   int iseed(124223);
-  float ddoca(0.1);
+  double ddoca(0.1);
   double Bgrad(0.0), By(0.0);
   bool simmat(true), lighthit(true);
   double zrange(3000.0); // tracker dimension
@@ -136,12 +134,12 @@ int main(int argc, char **argv) {
   BField* BF;
   if(Bgrad != 0){
     BF = new GradBField(1.0-0.5*Bgrad,1.0+0.5*Bgrad,-0.5*zrange,0.5*zrange);
-    BF->fieldVect(Vec3(0.0,0.0,0.0),bnom);
+    bnom = BF->fieldVect(Vec3(0.0,0.0,0.0));
   } else {
     BF = new UniformBField(bnom);
   }
   KKTest::ToyMC<KTRAJ> toy(*BF, mom, icharge, zrange, iseed, nhits, simmat, lighthit, -1.0, pmass );
-  PKTRAJ tptraj(TRange(),pmass,icharge);
+  PKTRAJ tptraj;
 //  cout << "True " << tptraj << endl;
   StrawMat const& smat = toy.strawMaterial();
   TGraph* ggplen = new TGraph(nhits); ggplen->SetTitle("Gas Pathlength;Doca (mm);Pathlength (mm)"); ggplen->SetMinimum(0.0);
@@ -181,13 +179,13 @@ int main(int argc, char **argv) {
     SCINTHITPTR lhptr = std::dynamic_pointer_cast<SCINTHIT> (thit);
     if(shptr.use_count() > 0){
       auto const& tline = shptr->wire();
-      tline.position(tline.range().low(),plow);
-      tline.position(tline.range().high(),phigh);
+      plow = tline.position(tline.range().low());
+      phigh = tline.position(tline.range().high());
       line->SetLineColor(kRed);
     } else if (lhptr.use_count() > 0){
       auto const& tline = lhptr->sensorAxis();
-      tline.position(tline.range().low(),plow);
-      tline.position(tline.range().high(),phigh);
+      plow = tline.position(tline.range().low());
+      phigh = tline.position(tline.range().high());
       line->SetLineColor(kCyan);
     }
     line->SetPoint(0,plow.X(),plow.Y(), plow.Z());
@@ -198,7 +196,7 @@ int main(int argc, char **argv) {
 //    double adot = tp.dirDot();
     double adot =0.0; // transverse
 //    double adot = tp.dirDot();
-    float doca = fabs(res.tPoca().doca());
+    double doca = fabs(res.tPoca().doca());
     double gpath = smat.gasPath(doca,ddoca,adot);
     double wpath = smat.wallPath(doca,ddoca,adot);
     ggplen->SetPoint(ihit,doca,gpath );
@@ -231,7 +229,7 @@ int main(int argc, char **argv) {
   unsigned nsteps(10);
   vector<TGraph*> hderivg(KTRAJ::NParams());
   for(size_t ipar=0;ipar < KTRAJ::NParams();ipar++){
-    auto tpar = static_cast<KTRAJ::ParamIndex>(ipar);
+    auto tpar = static_cast<typename KTRAJ::ParamIndex>(ipar);
     hderivg[ipar] = new TGraph(thits.size()*nsteps);
     std::string title = KTRAJ::paramTitle(tpar) + " Residual Derivative Test;"
     + KTRAJ::paramName(tpar) + " Exact #Delta (mm);"
@@ -241,7 +239,8 @@ int main(int argc, char **argv) {
   unsigned ipt(0);
   for(size_t istep=0;istep<nsteps; istep++){
     for(size_t ipar=0;ipar < KTRAJ::NParams();ipar++){
-      double dpar = delpars[ipar]*(-0.5 + float(istep)/float(nsteps));
+      auto tpar = static_cast<typename KTRAJ::ParamIndex>(ipar);
+      double dpar = delpars[ipar]*(-0.5 + double(istep)/double(nsteps));
       // update the hits
       for(auto& thit : thits) {
 	KKHit kkhit(thit,tptraj);
@@ -262,8 +261,8 @@ int main(int argc, char **argv) {
 	auto pder = ores.dRdP();
 	double ddr = ROOT::Math::Dot(pder,dpvec);
 	hderivg[ipar]->SetPoint(ipt++,dr,ddr);
-	if(dr*ddr < 0.0)cout << "Sign error doca " << ores.tPoca().doca() << " DirDot " << ores.tPoca().dirDot() <<" Exact change " << dr << " deriv " << ddr << endl;
-
+	if(dr*ddr < 0.0)cout << "Sign error " << KTRAJ::paramName(tpar) << " hit " << *thit 
+	<< " doca " << ores.tPoca().doca() << " DirDot " << ores.tPoca().dirDot() <<" Exact change " << dr << " deriv " << ddr << endl;
       }
     }
   }

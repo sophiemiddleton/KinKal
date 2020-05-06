@@ -24,8 +24,9 @@ namespace KinKal {
       // by default, the line has infinite unforced range
       TLine(Vec4 const& p0, Vec3 const& svel, TRange const& range=TRange(),bool forcerange=false);
       TLine(Vec3 const& p0, Vec3 const& svel, double tmeas, TRange const& range=TRange(),bool forcerange=false);
+      double paramVal(size_t index) const { return pars_.parameters()[index]; }
       PDATA const& params() const { return pars_; }
-      TLine(PDATA const& pdata){};
+      TLine(PDATA const& pdata) : pars_(pdata){};
 
       // named parameter accessors
       double param(size_t index) const { return pars_.parameters()[index]; }
@@ -55,7 +56,7 @@ namespace KinKal {
 
       // geometric accessors
       void position(Vec4& pos) const ;
-      
+
       Vec3 position(double time) const ;
       Vec3 velocity(double time) const ;
       Vec3 const& direction(double time) const  {return dir_;};
@@ -63,6 +64,7 @@ namespace KinKal {
 
       double speed(double time) const ;
       void setspeed(double speed) { speed_ = speed;}
+
       void print(std::ostream& ost, int detail) const ;
       TRange const& range() const { return trange_; }
       TRange& range() { return trange_; }

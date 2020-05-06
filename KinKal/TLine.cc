@@ -28,8 +28,8 @@ namespace KinKal {
   std::string const& TLine::paramUnit(ParamIndex index) { return paramUnits_[static_cast<size_t>(index)];}
 
   TLine::TLine(Vec4 const& pos0, Vec3 const& svel, TRange const& range,bool forcerange) : TLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {}
-  TLine::TLine(Vec3 const& pos0, Vec3 const& svel, double tmeas, TRange const& range, bool forcerange)  : trange_(range),
-  speed_(sqrt(svel.Mag2())), pos0_(pos0), dir_(svel.Unit()), forcerange_(forcerange) {
+
+  TLine::TLine(Vec3 const& pos0, Vec3 const& svel, double tmeas, TRange const& range, bool forcerange)  : trange_(range),speed_(sqrt(svel.Mag2())), pos0_(pos0), dir_(svel.Unit()), forcerange_(forcerange) {
     
     static const Vec3 zdir(0.0,0.0,1.0);
     double zddot = zdir.Dot(dir_);
@@ -55,13 +55,12 @@ namespace KinKal {
    return dir_*speed();
   }
 
-  
   double TLine::speed(double time) const {
     return speed();
   }
 
   double TLine::TOCA(Vec3 point) const {
-    double s = (point - pos0()).Dot(dir());
+    double s = (point - pos0()).Dot(dir_);
     return s/speed_ - t0();
   }
 

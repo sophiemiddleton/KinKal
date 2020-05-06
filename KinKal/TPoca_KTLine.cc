@@ -20,10 +20,10 @@ namespace KinKal {
 //*************** KTLine Stuff ***************** //
 //The following code is copied from Helix instance and adapted to the KTLine case.
 //1) Specialization for KTLine:
-  template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, TPocaHint const& hint, float precision) : TPocaBase(precision),ktraj_(&ktline), straj_(&tline) {
+  template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, TPocaHint const& hint, double precision) : TPocaBase(precision),ktraj_(&ktline), straj_(&tline) {
     // reset status
     reset();
-     float ktltime,ltime;
+     double ktltime,ltime;
     // similar for line; this shouldn't matter, since the solution is linear
     if(hint.particleHint_)
       ktltime = hint.particleToca_;
@@ -35,7 +35,7 @@ namespace KinKal {
       ltime= tline.t0();
 
     // use successive linear approximation until desired precision on DOCA is met.
-    float dptoca(std::numeric_limits<float>::max()), dstoca(std::numeric_limits<float>::max());
+    double dptoca(std::numeric_limits<double>::max()), dstoca(std::numeric_limits<double>::max());
 
     // use successive linear approximation until desired precision on DOCA is met.
     double doca(0.0);
@@ -96,19 +96,18 @@ namespace KinKal {
       tline.position(sensPoca_);
       // sign doca by angular momentum projected onto difference vector (same as helix)
       double lsign = tline.dir().Cross(ktdir).Dot(partPoca_.Vect()-partPoca_.Vect());
-      float dsign = copysign(1.0,lsign);
+      double dsign = copysign(1.0,lsign);
       doca_ = doca*dsign;
 
       // pre-compute some values needed for the derivative calculations
-      Vec3 vdoca, ddir;
-      delta(vdoca);
-      ddir = vdoca.Unit();// direction vector along D(POCA) from traj 2 to 1 (line to ktline)
+      Vec3 ddir;
+      ddir = delta().Vect().Unit();// direction vector along D(POCA) from traj 2 to 1 (line to ktline)
       ktline.direction(particlePoca().T());//hidr
 //TODO - look at the BTrk version (TrkMomCalc)
       // derviatives of TOCA and DOCA WRT particle trajectory parameters
       // no t0 dependence, DOCA is purely geometric
      
-      float d = sqrt((-1*ktline.d0()*-1*ktline.d0()) + (ktline.z0()*ktline.z0()));
+      double d = sqrt((-1*ktline.d0()*-1*ktline.d0()) + (ktline.z0()*ktline.z0()));
       //calculated these using BTrk instances - doc db ref ###
       dDdP_[KTLine::d0_] = 1/(2*d);
       dDdP_[KTLine::cost_] = 0;
