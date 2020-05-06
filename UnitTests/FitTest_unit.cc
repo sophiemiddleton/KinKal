@@ -602,4 +602,5 @@ int main(int argc, char **argv) {
   fitfile.Write();
   fitfile.Close();
   exit(EXIT_SUCCESS);
+}
 

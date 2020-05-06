@@ -1,4 +1,4 @@
-//
+/*
 // ToyMC test of fitting an KTRAJ-based KKTrk
 //
 #include "MatEnv/MatDBInfo.hh"
@@ -602,4 +602,4 @@ int main(int argc, char **argv) {
   fitfile.Write();
   fitfile.Close();
   exit(EXIT_SUCCESS);
-}
+}*/

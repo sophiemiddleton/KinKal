@@ -12,15 +12,15 @@ S Middleton 2020
 #include "KinKal/TLine.hh"
 #include "KinKal/KTLine.hh"
 #include "KinKal/PKTraj.hh"
+#include <limits>
+
 // specializations for TPoca
 using namespace std;
 namespace KinKal {
-
-
 //*************** KTLine Stuff ***************** //
 //The following code is copied from Helix instance and adapted to the KTLine case.
 //1) Specialization for KTLine:
-template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, double precision) : TPocaBase(ktline,tline,precision)  {
+  template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, TPocaHint const& hint, float precision) : TPocaBase(precision),ktraj_(&ktline), straj_(&tline) {
     // reset status
     reset();
      float ktltime,ltime;
@@ -44,11 +44,10 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
     // ktline speed doesn't change
     double ktspeed = ktline.speed(ktline.t0());
     Vec3 ktdir;
-    while(fabs(dpoca) > precision_ || fabs(dpoca) > precision_  && niter++ < maxiter) {
+    while((fabs(dptoca) > precision_ || fabs(dptoca) > precision_  )&& niter++ < maxiter) {
       // find line's local position and direction
-      Vec3 ktpos;
-      ktline.position(ktltime, ktpos);
-      ktline.direction(ktltime,ktdir);
+      Vec3 ktpos = ktline.position(ktltime);
+      ktdir = ktline.direction(ktltime);//,ktdir);
       auto dpos = tline.pos0()-ktpos;
       // dot products
       double ddot = tline.dir().Dot(ktdir);
@@ -65,14 +64,13 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       double ktlen = (ktdd - ldd*ddot)/denom;
       double llen = (ktdd*ddot - ldd)/denom;
       dptoca = (ktlen*ktspeed);
-      dstoca = tline.t0() + llen/tline.speed(ltime)) - ltime;
+      dstoca = tline.t0() + llen/tline.speed(ltime) - ltime;
       ktltime += dptoca; // ktline time is iterative
       ltime += dstoca; // line time is always WRT t0, since it uses p0
 
       // compute DOCA
-      ktline.position(kttime,ktpos);
-      Vec3 lpos;
-      tline.position(ltime,lpos);
+      ktpos = ktline.position(ktltime);
+      Vec3 lpos =  tline.position(ltime);
       double dd2 = (ktpos-lpos).Mag2();
       if(dd2 < 0.0 ){
 	      status_ = TPoca::pocafailed;
@@ -92,26 +90,25 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       else
 	      status_ = TPoca::unconverged;
         // set the positions
-      partPoca_[0].SetE(kttime);
-      ktline.position(partPoca_[0]);
-      partPoca_[1].SetE(ltime);
-      tline.position(sensPoca_[1]);
+      partPoca_.SetE(ktltime);
+      ktline.position(partPoca_);
+      partPoca_.SetE(ltime);
+      tline.position(sensPoca_);
       // sign doca by angular momentum projected onto difference vector (same as helix)
-      double lsign = tline.dir().Cross(ktdir).Dot(partPoca_[1].Vect()-partPoca_[0].Vect());
+      double lsign = tline.dir().Cross(ktdir).Dot(partPoca_.Vect()-partPoca_.Vect());
       float dsign = copysign(1.0,lsign);
       doca_ = doca*dsign;
 
       // pre-compute some values needed for the derivative calculations
-      Vec3 vdoca, ddir, hdir;
+      Vec3 vdoca, ddir;
       delta(vdoca);
       ddir = vdoca.Unit();// direction vector along D(POCA) from traj 2 to 1 (line to ktline)
-      ktline.direction(particlePoca().T(),hdir);
+      ktline.direction(particlePoca().T());//hidr
 //TODO - look at the BTrk version (TrkMomCalc)
       // derviatives of TOCA and DOCA WRT particle trajectory parameters
       // no t0 dependence, DOCA is purely geometric
-      float ktlphi = ktline.dir().Phi(); // local azimuth of ktline direction
-      float lphi = tline.dir().Phi(); // line azimuth
-      float d = sqrt((-1*ktline.d0()*-1*ktline.d0()) + (ktline.z0()*ktline.z0()))
+     
+      float d = sqrt((-1*ktline.d0()*-1*ktline.d0()) + (ktline.z0()*ktline.z0()));
       //calculated these using BTrk instances - doc db ref ###
       dDdP_[KTLine::d0_] = 1/(2*d);
       dDdP_[KTLine::cost_] = 0;
@@ -125,10 +122,8 @@ template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, 
       docavar_ = ROOT::Math::Similarity(dDdP(),ktline.params().covariance());
       tocavar_ = ROOT::Math::Similarity(dTdP(),ktline.params().covariance());
       // dot product between directions at POCA
-      Vec3 pdir, sdir;
-      ktline.direction(particleToca(),pdir);
-      tline.direction(sensorToca(),sdir);
-      ddot_ = pdir.Dot(sdir);
+  
+      ddot_ = ktline.direction(particleToca()).Dot(tline.direction(sensorToca()));
 
 
     }

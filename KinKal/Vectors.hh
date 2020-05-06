@@ -2,7 +2,7 @@
 #define KinKal_Vectors_hh
 // vetor typedefs used throughout the KinKal package
 #include "Math/Cartesian3D.h"
-#include "Math/Vector3D.h'
+#include "Math/Vector3D.h"
 #include "Math/Vector4D.h"
 #include "Math/Vector2D.h"
 #include <stdexcept>

@@ -16,7 +16,7 @@ namespace KinKal {
   vector<string> TLine::paramNames_ = {
   "D0","Phi0","Z0","CTheta","Time0"};
 
-  vector<string> KTLine::paramUnits_ = {
+  vector<string> TLine::paramUnits_ = {
   "mm","radians","mm","","ns"};
 
   std::vector<std::string> const& TLine::paramUnits() { return paramUnits_; }
@@ -28,11 +28,11 @@ namespace KinKal {
   std::string const& TLine::paramUnit(ParamIndex index) { return paramUnits_[static_cast<size_t>(index)];}
 
   TLine::TLine(Vec4 const& pos0, Vec3 const& svel, TRange const& range,bool forcerange) : TLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {}
-  TLine::TLine(Vec3 const& pos0, Vec3 const& svel, float tmeas, TRange const& range, bool forcerange)  : trange_(range),
+  TLine::TLine(Vec3 const& pos0, Vec3 const& svel, double tmeas, TRange const& range, bool forcerange)  : trange_(range),
   speed_(sqrt(svel.Mag2())), pos0_(pos0), dir_(svel.Unit()), forcerange_(forcerange) {
     
     static const Vec3 zdir(0.0,0.0,1.0);
-    float zddot = zdir.Dot(dir_);
+    double zddot = zdir.Dot(dir_);
     param(cost_) = zddot;
     param(d0_) = pos0_.Rho();
     param(phi0_) = atan2(pos0_.Y(),pos0_.X());
@@ -41,25 +41,22 @@ namespace KinKal {
   }
 
   void TLine::position(Vec4& pos) const {
-    Vec3 pos3;
-    position(pos.T(),pos3);
+    Vec3 pos3 = position(pos.T());
     pos.SetXYZT(pos3.X(),pos3.Y(),pos3.Z(),pos.T());
   }
 
-  void TLine::position(float time, Vec3& pos) const {
+
+  Vec3 TLine::position(double time) const {
     if(forceRange()) range().forceRange(time);
-    pos = pos0() + ((time-t0())*speed())*dir();
+    return (pos0() + ((time-t0())*speed())*dir());
   }
 
-  void TLine::velocity(float time, Vec3& vel) const {
-    vel = dir()*speed();
+  Vec3 TLine::velocity(double time) const {
+   return dir_*speed();
   }
 
-  void TLine::direction(float time, Vec3& dirvec) const {
-    dirvec = dir();
-  }
-
-  double TLine::speed(float time) const {
+  
+  double TLine::speed(double time) const {
     return speed();
   }
 

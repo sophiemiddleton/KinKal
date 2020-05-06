@@ -1,4 +1,4 @@
-//
+/*
 // test basic functions of TPoca using KTraj and TLine
 //
 #include "KinKal/KTLine.hh
@@ -177,4 +177,4 @@ int main(int argc, char **argv) {
   tpfile.Write();
   tpfile.Close();
   return 0;
-}
+}*/

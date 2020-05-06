@@ -31,34 +31,40 @@ using namespace std;
 using namespace ROOT::Math;
 
 namespace KinKal {
-  //Note : This class inherits a lot from TLine. So, I think we dont need all that LHelix has here as its defined in TLine
-  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, double mass, int charge, double bnom, TRange const& range)
-  : KTLine(pos0, mom0, mass, mass, charge, Vec3(0.0,0.0,bnom), range) {
-  }
-  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, double mass, int charge, Vec3 const& bnom, TRange const& range)
-  : TTraj(range), KInter(mom0.M(),charge), bnom_(bnom), mass_(mass), needsrot_(false) {
-    // Transform into the system where Z is along the Bfield.
-    Vec4 pos(pos0);
-    Mom4 mom(mom0);
-  }
-  KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
-  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range) {}
+    /*
+    KTLine can take in Momentum externally as a 4-vector or calculate it based. You can initialize the line with an origin (pos0) or the trajectory parameters (pdata)
+    To make things work it is essential that:
+      * mass - set in KInter and in the KTLine constructors
+      * speed - set in TLine and in KTline constructors
+      * direction - set in TLine and in KTLine constructors
 
+      are all set.
 
-  KTLine::KTLine PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
-  : KTLine(pdata, mass, charge, Vec3( 0.0, 0.0, bnom), range) {}
-  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range)
-  :TTraj(range), KInter(mass, charge), pars_(pdata), bnom_(bnom) {}
+    */ 
+
+    /* ...In thsis contructor mom4 is passed in, speed is passed to TLine */
+    KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     
+KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
+
+  KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range)
+  : KInter(mom0.M(),charge),  TLine(Vec3(pos0.x(),pos0.y(),pos0.z()), Vec3(mom0.Px()/mass_,mom0.Py()/mass_,mom0.Pz()/mass_), pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0) {
+   /* Vec3 mom3vec;
+    mom3vec.SetXYZ(mom0.Px()/mass_,mom0.Py()/mass_,mom0.Pz()/mass_);
+    speed_(mom3vec.mag());*/
+  }
+
+   /*...In this instance mass and speed are passed in */
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range, double speed)
+  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range,speed){} //speed passed as 
+
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range, double speed)
+  : KInter(mass, charge), TLine(pdata), trange_(range), pars_(pdata), bnom_(bnom), mass_(mass)){} //speed
 
   void KTLine::momentum(double tval, Mom4& mom) const{
-   mom.SetPx(momentum(tval) *dir().x());
-   mom.SetPy(momentum(tval)  *dir().y());
-   mom.SetPz(momentum(tval)  *dir().z());
+   mom.SetPx(momentumMag(tval)*dir().x());
+   mom.SetPy(momentumMag(tval)*dir().y());
+   mom.SetPz(momentumMag(tval)*dir().z());
    mom.SetM(mass_);
-  }
-
- void KTLine::velocity(double tval,Vec3& vel) const{
-    vel = dir()*speed();
   }
 
 /*
@@ -70,36 +76,47 @@ coming along the same track direction it is necessary to have difference
 parameterization than that used for the helix case.
 
 */
-  void KTLine::dirVector(MDir mdir,double tval,Vec3& unit) const {
+  Vec3  KTLine::direction(double t, LocalBasis::LocDir mdir) const {
+    Vec3 u;
     switch ( mdir ) {
-      case theta1: // purely plar change theta 1 = theta
-	      unit.SetX(-1*cosTheta()*sinPhi());
-	      unit.SetY(-1*sinTheta()*sinPhi());
-	      unit.SetZ(sinTheta());
-	      unit *= norm;
+      case LocalBasis::perpdir: // purely polar change theta 1 = theta
+	      u.SetX(-1*cosTheta()*sinPhi0());
+	      u.SetY(-1*sinTheta()*sinPhi0());
+	      u.SetZ(sinTheta());
+	      return u;
 	    break;
-        case theta2: // purely transverse theta2 = -phi()*sin(theta)
-	        unit.SetX(-cosPhi());
-          unit.SetY(sinPhi());
-          unit.SetZ(0.0);
+        case LocalBasis::phidir: // purely transverse theta2 = -phi()*sin(theta)
+	        u.SetX(-cosPhi0());
+          u.SetY(sinPhi0());
+          u.SetZ(0.0);
+          return u;
 	    break;
-        case momdir: // along momentum: check.
-	        direction(time,unit);
+        case LocalBasis::momdir: // along momentum: check.
+	       u.SetX(mom().Px()/mom().mag());
+         u.SetY(mom().Py()/mom().mag());
+         u.SetZ(mom().Pz()/mom().mag());
+         return u;
 	    break;
         default:
 	        throw std::invalid_argument("Invalid direction");
     }
-    if(needsrot_) unit = brot_(unit); //TODO - what is this used for?
+    if(needsrot_) {
+      u = brot_(u); 
+      return u;
+    }
   }
 
 // derivatives of momentum projected along the given basis WRT the 5 parameters
-  void KTLine::momDeriv(MDir mdir, double time, PDER& pder) const {
+  void KTLine::momDeriv(double t, LocalBasis::LocDir mdir, DVEC &pder, Vec3& u) const{
     // compute some useful quantities
-    double dt = time-t0();
+    double dt = t-t0();
     double l = CLHEP::c_light * beta() * (dt);
+    u.SetX(sinTheta()*sinPhi0());
+    u.SetY(sinTheta()*cosPhi0());
+    u.SetZ(cosTheta());
     // cases
     switch ( mdir ) {
-      case theta1:
+      case LocalBasis::perpdir:
 	      // polar bending: only momentum and position are unchanged
 	      pder[cost_] = 1;
 	      pder[d0_] = 0;
@@ -108,7 +125,7 @@ parameterization than that used for the helix case.
 	      pder[t0_] = dt;
 
 	      break;
-      case theta2:
+      case LocalBasis::phidir:
 	      // change in phi0*costheta
 	      pder[cost_] = 0;
 	      pder[d0_] = l/sinTheta();
@@ -117,15 +134,15 @@ parameterization than that used for the helix case.
 	      pder[t0_] = dt;
 
 	      break;
-      case momdir:
+      case LocalBasis::momdir:
 	      // fractional momentum change: position and direction are unchanged
-	      direction(time,unit);
+	      u = direction(t);
 	    break;
           default:
 	    throw std::invalid_argument("Invalid direction");
         }
   }
-  }
+  
 
     void KTLine::print(std::ostream& ost, int detail) const {
     ost << " KTLine " <<  range() << " parameters: ";
