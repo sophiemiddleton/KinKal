@@ -25,8 +25,8 @@ namespace KinKal {
       TLine(Vec4 const& p0, Vec3 const& svel, TRange const& range=TRange(),bool forcerange=false);
       TLine(Vec3 const& p0, Vec3 const& svel, double tmeas, TRange const& range=TRange(),bool forcerange=false);
       PDATA const& params() const { return pars_; }
-      TLine( PDATA const& pdata){};
-      
+      TLine(PDATA const& pdata){};
+
       // named parameter accessors
       double param(size_t index) const { return pars_.parameters()[index]; }
       double d0() const { return param(d0_); }
@@ -60,7 +60,9 @@ namespace KinKal {
       Vec3 velocity(double time) const ;
       Vec3 const& direction(double time) const  {return dir_;};
       Vec3 const& dir() const { return dir_;}
+
       double speed(double time) const ;
+      void setspeed(double speed) { speed_ = speed;}
       void print(std::ostream& ost, int detail) const ;
       TRange const& range() const { return trange_; }
       TRange& range() { return trange_; }
@@ -69,7 +71,7 @@ namespace KinKal {
 
     private:
       TRange trange_;
-      PData<npars_> pars_; // parameters
+      PDATA pars_; // parameters
       double speed_; // signed linear velocity, translates time to distance along the trajectory (mm/nsec)
       Vec3 pos0_, dir_; // caches
       bool forcerange_; // if set, strictly enforce the range

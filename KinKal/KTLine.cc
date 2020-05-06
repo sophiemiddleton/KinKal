@@ -42,23 +42,34 @@ namespace KinKal {
 
     */ 
 
-    /* ...In thsis contructor mom4 is passed in, speed is passed to TLine */
     KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     
 KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range)
-  : KInter(mom0.M(),charge),  TLine(Vec3(pos0.x(),pos0.y(),pos0.z()), Vec3(mom0.Px()/mass_,mom0.Py()/mass_,mom0.Pz()/mass_), pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0) {
-   /* Vec3 mom3vec;
-    mom3vec.SetXYZ(mom0.Px()/mass_,mom0.Py()/mass_,mom0.Pz()/mass_);
-    speed_(mom3vec.mag());*/
+  : KInter(mom0.M(),charge),  TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0) {}
+
+/*KTLine::KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range) : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range){}
+
+KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom,
+                 TRange const &trange, double speed) :  KInter(mass, charge), trange_(trange), pars_(pvec, pcov), bnom_(bnom), mass_(mass), spped_(speed)
+  {
+    dir_.SetXYZ(sinPhi0()*sinTheta(), -1*cosPhi0()*sinTheta(), cosTheta());
+    Mom3 momThree;
+    momThree.SetPxPyPz(dir_.x()*mass*betaGamma(), dir_.y()*mass*betaGamma(), dir_.z()*mass*betaGamma());
+    mom_.SetPxPyPzE(momThree.x(), momThree.y(), momThree.z(), mass);
   }
 
-   /*...In this instance mass and speed are passed in */
-  KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range, double speed)
-  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range,speed){} //speed passed as 
 
-  KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range, double speed)
-  : KInter(mass, charge), TLine(pdata), trange_(range), pars_(pdata), bnom_(bnom), mass_(mass)){} //speed
+KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range, double speed)
+  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){} 
+
+  KTLine::KTLine( PDATA const& pdata, Vec3 dir, double mass, int charge, Vec3 const& bnom, TRange const& range)
+  : KInter(mass, charge), TLine(pdata), trange_(range), pars_(pdata), bnom_(bnom), mass_(mass)){
+
+    dir_.SetXYZ(pars_.parameters()[index]
+
+  } 
+*/
 
   void KTLine::momentum(double tval, Mom4& mom) const{
    mom.SetPx(momentumMag(tval)*dir().x());
@@ -79,26 +90,26 @@ parameterization than that used for the helix case.
   Vec3  KTLine::direction(double t, LocalBasis::LocDir mdir) const {
     Vec3 u;
     switch ( mdir ) {
-      case LocalBasis::perpdir: // purely polar change theta 1 = theta
-	      u.SetX(-1*cosTheta()*sinPhi0());
-	      u.SetY(-1*sinTheta()*sinPhi0());
-	      u.SetZ(sinTheta());
-	      return u;
-	    break;
-        case LocalBasis::phidir: // purely transverse theta2 = -phi()*sin(theta)
-	        u.SetX(-cosPhi0());
-          u.SetY(sinPhi0());
-          u.SetZ(0.0);
-          return u;
-	    break;
-        case LocalBasis::momdir: // along momentum: check.
-	       u.SetX(mom().Px()/mom().mag());
-         u.SetY(mom().Py()/mom().mag());
-         u.SetZ(mom().Pz()/mom().mag());
-         return u;
-	    break;
-        default:
-	        throw std::invalid_argument("Invalid direction");
+    case LocalBasis::perpdir: // purely polar change theta 1 = theta
+      u.SetX(-1*cosTheta()*sinPhi0());
+      u.SetY(-1*sinTheta()*sinPhi0());
+      u.SetZ(sinTheta());
+      return u;
+    break;
+      case LocalBasis::phidir: // purely transverse theta2 = -phi()*sin(theta)
+      u.SetX(-cosPhi0());
+      u.SetY(sinPhi0());
+      u.SetZ(0.0);
+      return u;
+    break;
+      case LocalBasis::momdir: // along momentum: check.
+      u.SetX(mom().Px()/mom().mag());
+      u.SetY(mom().Py()/mom().mag());
+      u.SetZ(mom().Pz()/mom().mag());
+      return u;
+    break;
+      default:
+      throw std::invalid_argument("Invalid direction");
     }
     if(needsrot_) {
       u = brot_(u); 

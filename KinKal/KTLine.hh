@@ -32,11 +32,12 @@ namespace KinKal {
       KTLine(Vec4 const& pos, Mom4 const& mom, int charge, Vec3 const& bnom, TRange const& range=TRange());
       KTLine(Vec4 const& pos, Mom4 const& mom, int charge, double bnom, TRange const& range=TRange());
 
-      KTLine(PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range=TRange(), double speed);
-      KTLine(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange(), double speed);
+     /* KTLine(PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range=TRange()): TLine(pdata){};
+      KTLine(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange()){};
 
-     // KTLine(PDATA::DEV const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range=TRange()){};
-      //destructor:
+       KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
+       KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
+*/
       virtual ~KTLine() {}
 
       // particle momentum as a function of time
@@ -47,7 +48,7 @@ namespace KinKal {
       double momentumMag(double time) const  { return  gamma()*mass_*beta(); }//in MeV/c
       Mom4 mom() const { return mom_;}
       double momentumVar(float time) const  { return -1.0; }//FIXME!
-      double energy(double time) const  { return  (sqrt(mass_*mass_ + gamma()*mass_*beta()*gamma()*mass_*beta())); }//in MeV E=sqrt(p^2 + m^2)
+      double energy(double time){ return mom_.E();}
 
       // speed in mm/ns
       void print(std::ostream& ost, int detail) const;
@@ -59,31 +60,29 @@ namespace KinKal {
       // momentum change derivatives; this is required to instantiate a KalTrk using this KInter
       void momDeriv(double time, LocalBasis::LocDir mdir, DVEC &der, Vec3& uni) const;
 
+      //some possibly useful equations:
       double mass(){ return mass_;}
       double ztime(double zpos) const { return (t0() + zpos/((speed()*dir()).z())); } //time to travel Z
       int charge() const { return charge_; }
-      double beta() const { return (speed()/CLHEP::c_light);}// relativistic beta
-      double gamma() const {return (1/sqrt(1-(speed()/CLHEP::c_light)*(speed()/CLHEP::c_light)));}// relativistic gamma
-      Vec3 const& bnom() const { return bnom_; }//TODO - are these needed?
+      double beta() const { return (speed()/CLHEP::c_light);}
+      double gamma() const {return (1/sqrt(1-(speed()/CLHEP::c_light)*(speed()/CLHEP::c_light)));}
+      double betaGamma() const{ return beta()*gamma();}
+      double energyBG(double time) const  { return (sqrt(mass_*mass_ + betaGamma()*betaGamma()* mass_*mass_)); }//in MeV 
+      Vec3 const& bnom() const { return bnom_; }
 
-      void invertCT(){
+      /*void invertCT(){
         charge_ *=-1;
         pars_.parameters()[t0_] *=-1.0;
-      }
+      }*/
 
     private :
       TRange trange_;
-      PDATA pars_; // parameters
-      //double charge_; //particle charge - this would have to be passed in
-      Vec3 bnom_; // nominal BField
+      Vec3 bnom_; //should be 0,0,0
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
       ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global
       Mom4 mom_; // 4 momentum vector - px,py,pz,m
       double mass_; //mass in MeV/c2
-     
-
-
-      
+   
  };
 
 }
