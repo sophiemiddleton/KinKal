@@ -1,23 +1,7 @@
 /*
-KTLine inherits from KInter but we also want it be an instance of KKTrk, for that we need:
+  KTLine inherits from TLine but we also want it be an instance of KKTrk. We dont need all the parameters and functions to be redefined. KTLine follows from TLine.
 
-      void position(Vec4& pos) const; -->TLine
-      void position(float time, Vec3& pos) const; -->TLine
-      void velocity(float time, Vec3& vel) const; -->TLine
-      double speed(float time) const; --> TLine
-      void direction(float time, Vec3& dir) const; --> TLine
-      void print(std::ostream& ost, int detail) const; --> TLine but Override
-
- These are thing things we need to intiate in KTLine:
-      void momentum(double t,Mom4& mom) const; -->KTLine
-      void momentum(Vec4 const& pos, Mom4& mom) const { return momentum(pos.T(),mom); } -->no override
-      double momentum(float time) const; // momentum and energy magnitude in MeV/
-      double momentumVar(float time) const; // variance on momentum value --> this KTLine class
-      double energy(float time) const; -->KTLine.hh
-      void rangeInTolerance(TRange& range, BField const& bfield, double tol);-->this KTLine class
-      PDATA const& params() const;
-
-    s Middleton 2020
+  Original Author: S Middleton 2020
 
 */
 
@@ -33,13 +17,6 @@ using namespace ROOT::Math;
 namespace KinKal {
     /*
     KTLine can take in Momentum externally as a 4-vector or calculate it based. You can initialize the line with an origin (pos0) or the trajectory parameters (pdata)
-    To make things work it is essential that:
-      * mass - set in KInter and in the KTLine constructors
-      * speed - set in TLine and in KTline constructors
-      * direction - set in TLine and in KTLine constructors
-
-      are all set.
-
     */ 
 
     KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     

@@ -5,8 +5,7 @@
   But before that we need to add in momentum interface here.
   As KTLine inherits from TLine, there is no need to define
   position and direction.
-
-  S Middleton 2020
+  Original Author: S Middleton 2020
 */
 #include "KinKal/BField.hh"
 #include "KinKal/Vectors.hh"
@@ -34,8 +33,8 @@ namespace KinKal {
       KTLine(PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range=TRange());
       KTLine(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange());
 
-      /* KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
-       KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());*/
+       KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
+       KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
 
       virtual ~KTLine() {}
 
@@ -46,7 +45,7 @@ namespace KinKal {
       // scalar momentum and energy in MeV/c units --> Needed for KKTrk:
       double momentumMag(double time) const  { return  gamma()*mass_*beta(); }//in MeV/c
       Mom4 mom() const { return mom_;}
-      double momentumVar(double time) const  { return -1.0; }//FIXME!
+      double momentumVar(double time) const  { return -1.0; }
       double energy(double time){ return mom_.E();}
 
       // speed in mm/ns
