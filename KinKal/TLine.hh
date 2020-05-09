@@ -13,6 +13,7 @@ namespace KinKal {
       enum ParamIndex {d0_=0,phi0_=1,z0_=2,cost_=3,t0_=4,npars_=5};
       constexpr static size_t NParams() { return npars_; }
       typedef PData<npars_> PDATA; // Data payload for this class
+      typedef typename PDATA::DVEC DVEC; // derivative of parameters type
       static std::vector<std::string> const& paramNames(); 
       static std::vector<std::string> const& paramUnits(); 
       static std::vector<std::string> const& paramTitles();
@@ -24,17 +25,18 @@ namespace KinKal {
       // by default, the line has infinite unforced range
       TLine(Vec4 const& p0, Vec3 const& svel, TRange const& range=TRange(),bool forcerange=false);
       TLine(Vec3 const& p0, Vec3 const& svel, double tmeas, TRange const& range=TRange(),bool forcerange=false);
-      double paramVal(size_t index) const { return pars_.parameters()[index]; }
-      PDATA const& params() const { return pars_; }
+    
       TLine(PDATA const& pdata) : pars_(pdata){};
-
+      TLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov) : pars_(pvec, pcov){};
       // named parameter accessors
-      double param(size_t index) const { return pars_.parameters()[index]; }
-      double d0() const { return param(d0_); }
-      double phi0() const { return param(phi0_); }
-      double z0() const { return param(z0_); }
-      double cost() const { return param(cost_); }
-      double t0() const { return param(t0_); }
+      double paramVal(size_t index) const { return pars_.parameters()[index]; }
+      PDATA const &params() const { return pars_; }
+      PDATA &params() { return pars_; }
+      double d0() const { return paramVal(d0_); }
+      double phi0() const { return paramVal(phi0_); }
+      double z0() const { return paramVal(z0_); }
+      double cost() const { return paramVal(cost_); }
+      double t0() const { return paramVal(t0_); }
     
       // simple functions 
       double cosTheta() const { return cost(); }
@@ -70,7 +72,7 @@ namespace KinKal {
       TRange& range() { return trange_; }
       virtual void setRange(TRange const& trange) { trange_ = trange; }
       bool inRange(double time) const { return trange_.inRange(time); }
-
+     
     private:
       TRange trange_;
       PDATA pars_; // parameters

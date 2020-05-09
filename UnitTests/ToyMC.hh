@@ -232,6 +232,7 @@ namespace KKTest {
     DVEC pder;
     Vec3 unit;
     for(int idir=0;idir<LocalBasis::ndir;idir++){
+      std::cout<<"getting mom var================================"<<std::endl;
       seed.momDeriv(seed.range().mid(),LocalBasis::LocDir(idir),pder,unit);
       // convert derivative vector to a Nx1 matrix
       ROOT::Math::SMatrix<double,KTRAJ::NParams(),1> dPdm;

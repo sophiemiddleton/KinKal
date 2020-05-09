@@ -19,17 +19,19 @@ namespace KinKal {
     KTLine can take in Momentum externally as a 4-vector or calculate it based. You can initialize the line with an origin (pos0) or the trajectory parameters (pdata)
     */ 
 
-    KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     
-KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
+  KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     
+  KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range)
   : TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0), charge_(charge) {}
 
-KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
+  KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
   : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){} 
 
   KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range)
-  : TLine(pdata), trange_(range), bnom_(bnom), mass_(mass), charge_(charge), pars_(pdata){} 
+  : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range) {}
+  
+  KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &trange) :  TLine(pvec, pcov), trange_(trange), bnom_(bnom), mass_(mass), charge_(charge), pars_(pvec, pcov){}
 
   string KTLine::trajName_("KTLine");  
   string const& KTLine::trajName() { return trajName_; }
@@ -124,7 +126,7 @@ parameterization than that used for the helix case.
     void KTLine::print(std::ostream& ost, int detail) const {
     ost << " KTLine " <<  range() << " parameters: ";
     for(size_t ipar=0;ipar < KTLine::npars_;ipar++){
-      ost << KTLine::paramName(static_cast<KTLine::ParamIndex>(ipar) ) << " : " << param(ipar);
+      ost << KTLine::paramName(static_cast<KTLine::ParamIndex>(ipar) ) << " : " << paramVal(ipar);
       if(ipar < KTLine::npars_-1) ost << " , ";
     }
     ost << endl;

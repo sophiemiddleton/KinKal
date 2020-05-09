@@ -8,7 +8,7 @@ S Middleton 2020
 */
 
 #include "KinKal/TPoca.hh"
-#include "KinKal/LHelix.hh"
+#include "KinKal/KTLine.hh"
 #include "KinKal/TLine.hh"
 #include "KinKal/KTLine.hh"
 #include "KinKal/PKTraj.hh"
@@ -128,5 +128,41 @@ namespace KinKal {
     }
   }
 
+   // specialization between a piecewise KTLine and a line
+  typedef PKTraj<KTLine> PKTLINE;
+  template<> TPoca<PKTLINE,TLine>::TPoca(PKTLINE const& pktline, TLine const& tline, TPocaHint const& hint, double precision) : TPocaBase(precision), ktraj_(&pktline), straj_(&tline)  {
+    // iteratively find the nearest piece, and POCA for that piece.  Start at hints if availalble, otherwise the middle
+    static const unsigned maxiter=10; // don't allow infinite iteration.  This should be a parameter FIXME!
+    unsigned niter=0;
+    size_t oldindex= pktline.pieces().size(); //TODO --->do we want piecewise line fit?
+    size_t index;
+    if(hint.particleHint_){
+      index = pktline.nearestIndex(hint.particleToca_);
+    }else{
+      index = size_t(rint(oldindex/2.0));
+      status_ = converged; 
+    }
+    while(status_ == converged && niter++ < maxiter && index != oldindex){
+      // call down to KTLine TPoca
+      // prepare for the next iteration
+      KTLine const& piece = pktline.pieces()[index];
+      TPoca<KTLine,TLine> tpoca(piece,tline,hint,precision);
+      status_ = tpoca.status();
+      if(tpoca.usable()){
+	      // copy over the rest of the state
+	      partPoca_ = tpoca.particlePoca();
+	      sensPoca_ = tpoca.sensorPoca();
+	      doca_ = tpoca.doca();
+	      dDdP_ = tpoca.dDdP();
+	      dTdP_ = tpoca.dTdP();
+	      docavar_ = tpoca.docaVar();
+	      tocavar_ = tpoca.tocaVar();
+	      ddot_ = tpoca.dirDot();
+      }
+      oldindex = index;
+      index = pktline.nearestIndex(tpoca.particlePoca().T());
+    }
+    if(status_ == converged && niter >= maxiter) status_ = unconverged;
+  }
 
 }

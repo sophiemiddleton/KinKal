@@ -67,7 +67,7 @@ namespace KinKal {
   void TLine::print(std::ostream& ost, int detail) const {
     ost << " TLine " <<  range() << " parameters: ";
     for(size_t ipar=0;ipar < TLine::npars_;ipar++){
-      ost << TLine::paramName(static_cast<TLine::ParamIndex>(ipar) ) << " : " << param(ipar);
+      ost << TLine::paramName(static_cast<TLine::ParamIndex>(ipar) ) << " : " << paramVal(ipar);
       if(ipar < TLine::npars_-1) ost << " , ";
     }
     ost << endl;

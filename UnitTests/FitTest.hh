@@ -507,7 +507,7 @@ int FitTest(int argc, char **argv) {
       chisqprob->Fill(chiprob_);
       logchisqprob->Fill(log10(chiprob_));
       // fill tree
-      for(size_t ipar=0;ipar<6;ipar++){
+      for(size_t ipar=0;ipar<seedtraj.NParams();ipar++){
 	spars_.pars_[ipar] = seedtraj.params().parameters()[ipar];
 	ftpars_.pars_[ipar] = tptraj.front().params().parameters()[ipar];
 	etpars_.pars_[ipar] = tptraj.back().params().parameters()[ipar];

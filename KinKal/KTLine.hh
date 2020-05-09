@@ -33,8 +33,7 @@ namespace KinKal {
       KTLine(PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range=TRange());
       KTLine(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange());
 
-       KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
-       KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
+      KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
 
       virtual ~KTLine() {}
 
@@ -59,7 +58,7 @@ namespace KinKal {
       void momDeriv(double time, LocalBasis::LocDir mdir, DVEC &der, Vec3& uni) const;
 
       //some possibly useful equations:
-      double mass(){ return mass_;}
+      double mass() const{ return mass_;}
       double ztime(double zpos) const { return (t0() + zpos/((speed()*dir()).z())); } //time to travel Z
       int charge() const { return charge_; }
       double beta() const { return (speed()/CLHEP::c_light);}
