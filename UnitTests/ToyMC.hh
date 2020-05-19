@@ -88,10 +88,12 @@ namespace KKTest {
   };
 
   template <class KTRAJ> TLine ToyMC<KTRAJ>::generateStraw(PKTRAJ const& traj, double htime) {
+    std::cout<<" Generate Straw in Toy MC "<<std::endl;
     // start with the true helix position at this time
     Vec4 hpos; hpos.SetE(htime);
     traj.position(hpos);
     Vec3 hdir = traj.direction(htime);
+    std::cout<<" Generate Straw in Toy MC  N1 "<<std::endl;
     // generate a random direction for the straw
     double eta = tr_.Uniform(-M_PI,M_PI);
     Vec3 sdir(cos(eta),sin(eta),0.0);
@@ -99,10 +101,12 @@ namespace KKTest {
     double rdrift = tr_.Uniform(-rstraw_,rstraw_);
     Vec3 drift = (sdir.Cross(hdir)).Unit();
     Vec3 dpos = hpos.Vect() + rdrift*drift;
+    std::cout<<" Generate Straw in Toy MC N2 "<<std::endl;
     //  cout << "Generating hit at position " << dpos << endl;
     double dprop = tr_.Uniform(0.0,rmax_);
     Vec3 mpos = dpos + sdir*dprop;
     Vec3 vprop = sdir*sprop_;
+    std::cout<<" Generate Straw in Toy MC N3 "<<std::endl;
     // measured time is after propagation and drift
     double tmeas = htime + dprop/sprop_ + fabs(rdrift)/sdrift_;
     // smear measurement time
@@ -114,6 +118,7 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::simulateParticle(PKTRAJ& pktraj,THITCOL& thits, DXINGCOL& dxings) {
+    std::cout<<" simulate particle in Toy MC "<<std::endl;
     // create the seed first
     createTraj(pktraj);
     // divide time range
@@ -152,6 +157,7 @@ namespace KKTest {
   }
 
   template <class KTRAJ> double ToyMC<KTRAJ>::createStrawMaterial(PKTRAJ& pktraj, STRAWXING const& sxing) {
+    std::cout<<" cretae straw materials in Toy MC "<<std::endl;
     double desum = 0.0;
     double tstraw = sxing.crossingTime();
     auto const& endpiece = pktraj.nearestPiece(tstraw);
@@ -192,6 +198,7 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::createScintHit(PKTRAJ const& pktraj, THITCOL& thits) {
+    std::cout<<" create ScintHit in Toy MC "<<std::endl;
     // create a ScintHit at the end, axis parallel to z
     // first, find the position at showermax_.
     Vec3 shmpos, hend, lmeas;
@@ -227,6 +234,7 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::createSeed(KTRAJ& seed){
+    std::cout<<" create Seed Toy MC "<<std::endl;
     auto& seedpar = seed.params();
     // propagate the momentum and position variances to parameter variances
     DVEC pder;
@@ -257,6 +265,7 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::extendTraj(PKTRAJ& pktraj,double htime) {
+    std::cout<<" extend traj in Toy MC "<<std::endl;
     ROOT::Math::SMatrix<double,3> bgrad;
     Vec3 pos,vel, dBdt;
     pos = pktraj.position(htime);
@@ -283,6 +292,7 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::createTraj(PKTRAJ& pktraj) {
+    std::cout<<" create traj in Toy MC "<<std::endl;
     // randomize the position and momentum
     double tphi = tr_.Uniform(-M_PI,M_PI);
     double tcost = tr_.Uniform(ctmin_,ctmax_);

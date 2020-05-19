@@ -34,6 +34,9 @@ namespace KinKal {
       KTLine(PDATA const& pdata, double mass, int charge, double bnom, TRange const& range=TRange());
 
       KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &range = TRange());
+  
+      
+      KTLine(PDATA const& pdata, const KTLine& ktline); 
 
       virtual ~KTLine() {}
 
@@ -58,12 +61,28 @@ namespace KinKal {
       void momDeriv(double time, LocalBasis::LocDir mdir, DVEC &der, Vec3& uni) const;
 
       //some possibly useful equations:
-      double mass() const{ return mass_;}
-      double ztime(double zpos) const { return (t0() + zpos/((speed()*dir()).z())); } //time to travel Z
+      double mass() const{ 
+        std::cout<<" get mass "<<mass_<<std::endl;
+        return mass_;
+      }
+      double ztime(double zpos) const { 
+        std::cout<<" z pos "<<(t0() + zpos/((speed()*dir()).z()))<<std::endl;
+        return (t0() + zpos/((speed()*dir()).z())); 
+      } //time to travel Z
       int charge() const { return charge_; }
-      double beta() const { return (speed()/CLHEP::c_light);}
-      double gamma() const {return (1/sqrt(1-(speed()/CLHEP::c_light)*(speed()/CLHEP::c_light)));}
-      double betaGamma() const{ return beta()*gamma();}
+      double beta() const { 
+        std::cout<<" beta "<<speed()/CLHEP::c_light<<std::endl;
+        return (speed()/CLHEP::c_light);
+      }
+      double gamma() const {
+        std::cout<<" CLIGHT "<<CLHEP::c_light<<std::endl;
+        std::cout<<" gamma "<<1/sqrt(1-((speed()/CLHEP::c_light)*(speed()/CLHEP::c_light)))<<std::endl;
+        return (1/sqrt(1-((speed()/CLHEP::c_light)*(speed()/CLHEP::c_light))));
+      }
+      double betaGamma() const{ 
+        std::cout<<" beta * gamma "<<beta()*gamma()<<std::endl;
+        return beta()*gamma();
+      }
       double energyBG(double time) const  { return (sqrt(mass_*mass_ + betaGamma()*betaGamma()* mass_*mass_)); }//in MeV 
       Vec3 const& bnom() const { return bnom_; }
 
@@ -77,7 +96,7 @@ namespace KinKal {
       Vec3 bnom_; //should be 0,0,0
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
       ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global
-      Mom4 mom_; // 4 momentum vector - px,py,pz,m
+      Mom4 pos40_, mom_; // 4 momentum vector - px,py,pz,m
       double mass_; //mass in MeV/c2
       int charge_;
       PDATA pars_;

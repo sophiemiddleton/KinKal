@@ -30,7 +30,7 @@ namespace KinKal {
   TLine::TLine(Vec4 const& pos0, Vec3 const& svel, TRange const& range,bool forcerange) : TLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {}
 
   TLine::TLine(Vec3 const& pos0, Vec3 const& svel, double tmeas, TRange const& range, bool forcerange)  : trange_(range),speed_(sqrt(svel.Mag2())), pos0_(pos0), dir_(svel.Unit()), forcerange_(forcerange) {
-    
+    cout<<"Input speed into Tline "<<speed_<<endl;
     static const Vec3 zdir(0.0,0.0,1.0);
     double zddot = zdir.Dot(dir_);
     param(cost_) = zddot;
@@ -41,17 +41,21 @@ namespace KinKal {
   }
 
   void TLine::position(Vec4& pos) const {
+   
     Vec3 pos3 = position(pos.T());
+    std::cout<<" position from vec4 "<<std::endl;
     pos.SetXYZT(pos3.X(),pos3.Y(),pos3.Z(),pos.T());
   }
 
 
   Vec3 TLine::position(double time) const {
     if(forceRange()) range().forceRange(time);
+    std::cout<<" postion from time "<<(pos0() + ((time-t0())*speed())*dir())<<" pos0 "<<pos0()<<" dir "<<dir()<<std::endl;
     return (pos0() + ((time-t0())*speed())*dir());
   }
 
   Vec3 TLine::velocity(double time) const {
+   std::cout<<" speed in velocity"<<speed_<<std::endl;
    return dir_*speed();
   }
 

@@ -235,14 +235,17 @@ int FitTest(int argc, char **argv) {
     bnom = Vec3(0.0,0.0,Bz);
   }
   // create ToyMC
+std::cout<<"Fit TEST Point 1  "<<std::endl;
   simmass = masses[isimmass];
   fitmass = masses[ifitmass];
   KKTest::ToyMC<KTRAJ> toy(*BF, mom, icharge, zrange, iseed, nhits, simmat, lighthit, ambigdoca, simmass );
   // generate hits
+std::cout<<"Fit TEST Point 2 "<<std::endl;
   THITCOL thits; // this program shares hit ownership with KKTrk
   DXINGCOL dxings; // this program shares det xing ownership with KKTrk
   PKTRAJ tptraj;
   toy.simulateParticle(tptraj, thits, dxings);
+std::cout<<"Fit TEST Point 3  "<<std::endl;
   // temporary FIXME!
   toy.setSmearSeed(false);
   cout << "True initial " << tptraj.front() << endl;
@@ -250,17 +253,21 @@ int FitTest(int argc, char **argv) {
 //  cout << "True " << tptraj << endl;
   double startmom = tptraj.momentumMag(tptraj.range().low());
   double endmom = tptraj.momentumMag(tptraj.range().high());
+std::cout<<"Fit TEST Point 4 "<<std::endl;
   Vec3 end, bend;
   bend = tptraj.front().direction(tptraj.range().high());
   end = tptraj.back().direction(tptraj.range().high());
   double angle = ROOT::Math::VectorUtil::Angle(bend,end);
+std::cout<<"Fit TEST Point 5  "<<std::endl;
   cout << "total momentum change = " << endmom-startmom << " total angle change = " << angle << endl;
   // create the fit seed by randomizing the parameters at the middle.  Overrwrite to use the fit BField
   auto const& midhel = tptraj.nearestPiece(0.0);
   KTRAJ seedtraj(midhel.params(),fitmass,midhel.charge(),bnom,midhel.range());
+std::cout<<"Fit TEST Point 6  "<<std::endl;
   if(invert) seedtraj.invertCT(); // for testing wrong propagation direction
   toy.createSeed(seedtraj);
   cout << "Seed params " << seedtraj.params().parameters() <<" covariance " << endl << seedtraj.params().covariance() << endl;
+std::cout<<"Fit TEST Point 7  "<<std::endl;
   // Create the KKTrk from these hits
   //
   KKCONFIGPTR configptr = make_shared<KKConfig>(*BF);
@@ -270,17 +277,20 @@ int FitTest(int argc, char **argv) {
   configptr->addmat_ = fitmat;
   configptr->tol_ = tol;
   configptr->plevel_ = (KKConfig::printLevel)detail;
+std::cout<<"Fit TEST Point 8  "<<std::endl;
   // add schedule; MC-truth based ambiguity
   MConfig mconfig;
   mconfig.updatemat_ = mconfig.updatebfcorr_ = false ;
   mconfig.updatehits_ = updatehits;
   mconfig.hitupdateparams_.push_back(make_any<WHUParams>(ambigdoca,100.0)); // 1st parameter turns off drift, 2nd says accept all hits
+std::cout<<"Fit TEST Point 9 "<<std::endl;
   mconfig.temp_ = maxtemp; // first
 //  mconfig.convdchisq_ = 1.0; // initially crude 
   mconfig.convdchisq_ = convdchisq; 
   mconfig.divdchisq_ = 1000*mconfig.convdchisq_;
   mconfig.oscdchisq_ = 10*mconfig.convdchisq_;
   configptr->schedule_.push_back(mconfig);
+std::cout<<"Fit TEST Point 10  "<<std::endl;
   double tstep = maxtemp/(std::max(nmeta,(unsigned)1));
   double temp = maxtemp;
   for(unsigned imeta = 0; imeta< nmeta; imeta++){
@@ -290,6 +300,7 @@ int FitTest(int argc, char **argv) {
     mconfig.updatebfcorr_ = true;
     configptr->schedule_.push_back(mconfig);
   }
+std::cout<<"Fit TEST Point 11 "<<std::endl;
   cout << *configptr << endl;
 // create and fit the track
   KKTRK kktrk(configptr,seedtraj,thits,dxings);
@@ -314,6 +325,7 @@ int FitTest(int argc, char **argv) {
       Vec3 ppos = fithel.position(tp);
       fitpl->SetPoint(ip,ppos.X(),ppos.Y(),ppos.Z());
     }
+std::cout<<"Fit TEST Point 12  "<<std::endl;
     fitpl->Draw();
 // now draw the truth
     TPolyLine3D* ttpl = new TPolyLine3D(np);
@@ -326,6 +338,7 @@ int FitTest(int argc, char **argv) {
       ttpl->SetPoint(ip,ppos.X(),ppos.Y(),ppos.Z());
     }
     ttpl->Draw();
+std::cout<<"Fit TEST Point 13 "<<std::endl;
     // draw the hits
     std::vector<TPolyLine3D*> htpls;
     for(auto const& thit : thits) {
@@ -349,6 +362,7 @@ int FitTest(int argc, char **argv) {
       line->Draw();
       htpls.push_back(line);
     }
+std::cout<<"Fit TEST Point 14  "<<std::endl;
 
     // draw the origin and axes
     TAxis3D* rulers = new TAxis3D();
@@ -445,6 +459,7 @@ int FitTest(int argc, char **argv) {
       duration += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
       // compare parameters at the first traj of both true and fit
       // correct the true parameters in case the BField isn't nominal
+std::cout<<"Fit TEST Point 15  "<<std::endl;
       typename KTRAJ::PDATA ftpars, btpars; 
       if((kktrk.fitTraj().front().bnom() - tptraj.front().bnom()).R() < 1e-6){
 	ftpars = tptraj.front().params();
@@ -466,7 +481,7 @@ int FitTest(int argc, char **argv) {
       // fit parameters
       auto const& ffpars = kktrk.fitTraj().front().params();
       auto const& bfpars = kktrk.fitTraj().back().params();
-      
+      std::cout<<"Fit TEST Point 16  "<<std::endl;
      // momentum
       // accumulate parameter difference and pull
       vector<double> cerr(6,0.0), bcerr(6,0.0);
@@ -489,6 +504,7 @@ int FitTest(int argc, char **argv) {
 	  corravg->Fill(ipar,jpar,fabs(corr));
 	}
       }
+std::cout<<"Fit TEST Point 17  "<<std::endl;
       // accumulate chisquared info
       unsigned niter(0), nfail(0), ndiv(0);
       for(auto const& fstat: kktrk.history()){

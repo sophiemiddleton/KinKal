@@ -48,7 +48,10 @@ namespace KinKal {
 
       // access position and direction
       Vec3 const& pos0() const { return pos0_; }
-      double speed() const { return speed_; }
+      double speed() const { 
+         // std::cout<<" Speed is curently "<<speed_<<std::endl;
+          return speed_; 
+      }
 
       // are we forcing the range?
       bool forceRange() const { return forcerange_; }
@@ -61,11 +64,17 @@ namespace KinKal {
 
       Vec3 position(double time) const ;
       Vec3 velocity(double time) const ;
-      Vec3 const& direction(double time) const  {return dir_;};
+      Vec3 const& direction(double time) const  {
+        std::cout<<"direction in TLine"<<dir_<<std::endl;
+        return dir_;
+      };
       Vec3 const& dir() const { return dir_;}
 
       double speed(double time) const ;
-      void setspeed(double speed) { speed_ = speed;}
+      void setspeed(double speed) { 
+        std::cout<<"setting speed"<<std::endl;
+        speed_ = speed;
+      }
 
       void print(std::ostream& ost, int detail) const ;
       TRange const& range() const { return trange_; }

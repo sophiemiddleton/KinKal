@@ -20,29 +20,48 @@ namespace KinKal {
     */ 
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     
-  KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
+  KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {std::cout<<" Constructor 1 "<<speed()<<std::endl;}
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range)
-  : TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), mom_(mom0), charge_(charge) {}
+  : TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), pos40_(pos0), mom_(mom0), charge_(charge) {
+    mass_ = mom0.M();
+    cout<<"Contructor 2 "<<endl;
+
+  }
 
   KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
-  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){} 
+  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){std::cout<<" Constructor 3 "<<speed()<<std::endl;} 
 
   KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range)
-  : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range) {}
+  : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range) {std::cout<<" Constructor 4 "<<speed()<<std::endl;}
   
-  KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &trange) :  TLine(pvec, pcov), trange_(trange), bnom_(bnom), mass_(mass), charge_(charge), pars_(pvec, pcov){}
+  KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &trange) :  TLine(pvec, pcov), trange_(trange), bnom_(bnom), mass_(mass), charge_(charge), pars_(pvec, pcov){
+  //setspeed(297.2);
+  std::cout<<" Constructor 5 "<<speed()<<std::endl;
+
+}
+
+KTLine::KTLine(PDATA const& pdata, KTLine const& ktline) : TLine(ktline.pos40_.Vect(), (ktline.mom_.Vect()/ktline.mom_.E())*CLHEP::c_light, ktline.pos40_.T(), ktline.trange_), KTLine(pdata.parameters(),pdata.covariance(),ktline.mass_,ktline.charge_,ktline.bnom_,ktline.trange_) {std::cout<<" Constructor 6 "<<std::endl;};
 
   string KTLine::trajName_("KTLine");  
   string const& KTLine::trajName() { return trajName_; }
 
   void KTLine::momentum(double tval, Mom4& mom) const{
-   mom.SetPx(momentumMag(tval)*dir().x());
-   mom.SetPy(momentumMag(tval)*dir().y());
-   mom.SetPz(momentumMag(tval)*dir().z());
-   mom.SetM(mass_);
+    cout<<" mom mag 1 "<<momentumMag(tval)<<" "<<gamma()<<" "<<mass_<<" "<<beta()<<endl;
+    mom.SetPx(momentumMag(tval)*sinTheta() * sinPhi0());
+    mom.SetPy(momentumMag(tval)*sinTheta() * cosPhi0());
+    mom.SetPz(momentumMag(tval)*cosTheta());
+    mom.SetM(mass_);
+
   }
+
   Mom4 KTLine::momentum(double tval) const{
+    Mom4 mom;
+    cout<<" mom mag 2 "<<momentumMag(tval)<<" "<<gamma()<<" "<<mass_<<" "<<beta()<<speed()<<endl;
+    mom.SetPx(momentumMag(tval)*sinTheta() * sinPhi0());
+    mom.SetPy(momentumMag(tval)*sinTheta() * cosPhi0());
+    mom.SetPz(momentumMag(tval)*cosTheta());
+    mom.SetM(mass_);
     return mom_;
   }
 
@@ -59,21 +78,26 @@ parameterization than that used for the helix case.
     Vec3 u;
     switch ( mdir ) {
     case LocalBasis::perpdir: // purely polar change theta 1 = theta
+      cout<<"Perpdir "<<endl;
       u.SetX(-1*cosTheta()*sinPhi0());
-      u.SetY(-1*sinTheta()*sinPhi0());
+      u.SetY(-1*cosTheta()*cosPhi0());
       u.SetZ(sinTheta());
+      cout<<" Unit in perp "<<u<<endl;
       return u;
     break;
+      cout<<"phi dir "<<endl;
       case LocalBasis::phidir: // purely transverse theta2 = -phi()*sin(theta)
       u.SetX(-cosPhi0());
       u.SetY(sinPhi0());
       u.SetZ(0.0);
+      cout<<" Unit in phi "<<u<<endl;
       return u;
     break;
       case LocalBasis::momdir: // along momentum: check.
-      u.SetX(mom().Px()/mom().mag());
-      u.SetY(mom().Py()/mom().mag());
-      u.SetZ(mom().Pz()/mom().mag());
+      u.SetX(sinTheta() * sinPhi0());
+      u.SetY(sinTheta() * cosPhi0());
+      u.SetZ(cosTheta());
+      cout<<" Unit in mom "<<u<<endl;
       return u;
     break;
       default:
@@ -95,25 +119,28 @@ parameterization than that used for the helix case.
     u.SetZ(cosTheta());
     // cases
     switch ( mdir ) {
+      
       case LocalBasis::perpdir:
 	      // polar bending: only momentum and position are unchanged
 	      pder[cost_] = 1;
 	      pder[d0_] = 0;
 	      pder[phi0_] = 0;
-	      pder[z0_] = (-1*l/sinTheta());
+	      pder[z0_] = (1*l/sinTheta());
 	      pder[t0_] = dt;
-
+        cout<<" deriv perpdir "<<pder <<endl;
 	      break;
       case LocalBasis::phidir:
+
 	      // change in phi0*costheta
 	      pder[cost_] = 0;
 	      pder[d0_] = l/sinTheta();
 	      pder[phi0_] = -1/sinTheta();
 	      pder[z0_] = d0()*(1/sinTheta()*tanTheta());
 	      pder[t0_] = dt;
-
+        cout<<"deriv phi dir "<<pder<<endl;
 	      break;
       case LocalBasis::momdir:
+        cout<<"mom dir "<<u<<endl;
 	      // fractional momentum change: position and direction are unchanged
 	      u = direction(t);
 	    break;
