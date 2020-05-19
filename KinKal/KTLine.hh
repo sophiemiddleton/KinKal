@@ -53,10 +53,7 @@ namespace KinKal {
       // speed in mm/ns
       void print(std::ostream& ost, int detail) const;
       void rangeInTolerance(TRange& range, BField const& bfield, double tol) const {};//infinity for striaght line
-     /* void setrange(double low, double high) const { 
-        trange_.low() = low;
-        trange_.high() = high;
-       }*/
+
       // local momentum direction basis
       Vec3 direction(double time, LocalBasis::LocDir mdir=LocalBasis::momdir) const;
       Vec4 pos4(double time) const;
@@ -65,25 +62,19 @@ namespace KinKal {
 
       //some possibly useful equations:
       double mass() const{ 
-        std::cout<<" get mass "<<mass_<<std::endl;
         return mass_;
       }
       double ztime(double zpos) const { 
-        std::cout<<" z pos "<<(t0() + zpos/((speed()*dir()).z()))<<std::endl;
         return (t0() + zpos/((speed()*dir()).z())); 
       } //time to travel Z
       int charge() const { return charge_; }
       double beta() const { 
-        std::cout<<" beta "<<speed()/CLHEP::c_light<<std::endl;
         return (speed()/CLHEP::c_light);
       }
       double gamma() const {
-        std::cout<<" CLIGHT "<<CLHEP::c_light<<std::endl;
-        std::cout<<" gamma "<<1/sqrt(1-((speed()/CLHEP::c_light)*(speed()/CLHEP::c_light)))<<std::endl;
         return (1/sqrt(1-((speed()/CLHEP::c_light)*(speed()/CLHEP::c_light))));
       }
       double betaGamma() const{ 
-        std::cout<<" beta * gamma "<<beta()*gamma()<<std::endl;
         return beta()*gamma();
       }
       double energyBG(double time) const  { return (sqrt(mass_*mass_ + betaGamma()*betaGamma()* mass_*mass_)); }//in MeV 
@@ -95,7 +86,6 @@ namespace KinKal {
       }
 
     private :
-     // TRange trange_;
       Vec3 bnom_; //should be 0,0,0
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
       ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global

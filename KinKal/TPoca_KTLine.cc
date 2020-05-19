@@ -21,6 +21,7 @@ namespace KinKal {
 //The following code is copied from Helix instance and adapted to the KTLine case.
 //1) Specialization for KTLine:
   template<> TPoca<KTLine,TLine>::TPoca(KTLine const& ktline, TLine const& tline, TPocaHint const& hint, double precision) : TPocaBase(precision),ktraj_(&ktline), straj_(&tline) {
+   cout<<"START"<<ktline.params()<<endl;
     // reset status
     reset();
      double htoca, stoca;
@@ -67,6 +68,7 @@ namespace KinKal {
       double ldd = dpos.Dot(tline.dir());
       // compute length from expansion point to POCA and convert to times
       dptoca = (ktdd-ldd*ddot)/(denom*ktspeed);
+      std::cout<<ktdd<<" "<<ldd<<" "<<ddot<<" "<<ktspeed<<" "<<denom<<" "<<(ktdd-ldd*ddot)/(denom*ktspeed)<<std::endl;
       std::cout<<" dptoca "<<dptoca<<std::endl;
       dstoca = tline.t0() + (ktdd*ddot-ldd)/(denom*tline.speed(stoca)) - stoca;
       htoca += dptoca; // ktline time is iterative
@@ -115,13 +117,14 @@ namespace KinKal {
       // derviatives of TOCA and DOCA WRT particle trajectory parameters
       // no t0 dependence, DOCA is purely geometric
       cout<<"Getting TPOCA derivs"<<endl;
-      double d = sqrt((-1*ktline.d0()*-1*ktline.d0()) + (ktline.z0()*ktline.z0()));
+      double d = sqrt((ktline.d0()*ktline.d0())+(ktline.z0()*ktline.z0()));
+      cout<<"d "<<d<<ktline.params()<<endl;
       //calculated these using BTrk instances - doc db ref ###
       dDdP_[KTLine::d0_] = 1/(2*d);
-      dDdP_[KTLine::cost_] = 0;
-      dDdP_[KTLine::phi0_] = 0; //cos^2+sin^2 = 1 so phi0 factors out.
+      dDdP_[KTLine::cost_] = 1;
+      dDdP_[KTLine::phi0_] = 1; //cos^2+sin^2 = 1 so phi0 factors out.
       dDdP_[KTLine::z0_] = 1/(2*d);
-
+      cout<<"dDdP+ "<<dDdP_<<endl;
       // no spatial dependence, DT is purely temporal
       dTdP_[KTLine::t0_] = 1.0; // time is 100% correlated
 
@@ -131,7 +134,7 @@ namespace KinKal {
       // dot product between directions at POCA
   
       ddot_ = ktline.direction(particleToca()).Dot(tline.direction(sensorToca()));
-
+      cout<<"ddot END "<<ddot_<<endl;
 
     }
   }

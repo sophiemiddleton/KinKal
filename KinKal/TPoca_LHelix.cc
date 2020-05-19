@@ -49,6 +49,7 @@ namespace KinKal {
       dstoca = tline.t0() + (hdd*ddot - ldd)/(denom*tline.speed(stoca)) - stoca;
       htoca += dptoca; // helix time is iterative
       stoca += dstoca; // line time is always WRT t0, since it uses p0
+      std::cout<<" tocas "<<dstoca<<" "<<dptoca<<" "<<htoca<<" "<<stoca<<std::endl;
       // compute DOCA
       hpos = lhelix.position(htoca);
       Vec3 lpos = tline.position(stoca);

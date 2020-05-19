@@ -45,7 +45,7 @@ int TPocaTest(int argc, char **argv) {
   int opt;
   double mom(105.0), cost(0.7), phi(0.5);
   int icharge(-1);
-  double pmass(0.511), oz(0.0), ot(0.0);
+  double pmass(0.511), oz(10.0), ot(0.0);
   double tmin(-10.0), tmax(10.0);
   double hlen(500.0); // half-length of the wire
   double gap(2.0); // distance between TLine and KTRAJ 
@@ -91,7 +91,7 @@ int TPocaTest(int argc, char **argv) {
   // create helix
   Vec3 bnom(0.0,0.0,1.0);
   UniformBField BF(bnom); // 1 Tesla
-  Vec4 origin(0.0,0.0,oz,ot);
+  Vec4 origin(0,0,oz,ot);
   double sint = sqrt(1.0-cost*cost);
   Mom4 momv(mom*sint*cos(phi),mom*sint*sin(phi),mom*cost,pmass);
   KTRAJ lhel(origin,momv,icharge,bnom);
