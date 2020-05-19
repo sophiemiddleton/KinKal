@@ -1,3 +1,5 @@
+#ifndef KinKal_ToyMC_hh
+#define KinKal_ToyMC_hh
 //
 //  Toy MC for fit and hit testing
 //
@@ -88,12 +90,10 @@ namespace KKTest {
   };
 
   template <class KTRAJ> TLine ToyMC<KTRAJ>::generateStraw(PKTRAJ const& traj, double htime) {
-    std::cout<<" Generate Straw in Toy MC "<<std::endl;
     // start with the true helix position at this time
     Vec4 hpos; hpos.SetE(htime);
     traj.position(hpos);
     Vec3 hdir = traj.direction(htime);
-    std::cout<<" Generate Straw in Toy MC  N1 "<<std::endl;
     // generate a random direction for the straw
     double eta = tr_.Uniform(-M_PI,M_PI);
     Vec3 sdir(cos(eta),sin(eta),0.0);
@@ -101,12 +101,10 @@ namespace KKTest {
     double rdrift = tr_.Uniform(-rstraw_,rstraw_);
     Vec3 drift = (sdir.Cross(hdir)).Unit();
     Vec3 dpos = hpos.Vect() + rdrift*drift;
-    std::cout<<" Generate Straw in Toy MC N2 "<<std::endl;
     //  cout << "Generating hit at position " << dpos << endl;
     double dprop = tr_.Uniform(0.0,rmax_);
     Vec3 mpos = dpos + sdir*dprop;
     Vec3 vprop = sdir*sprop_;
-    std::cout<<" Generate Straw in Toy MC N3 "<<std::endl;
     // measured time is after propagation and drift
     double tmeas = htime + dprop/sprop_ + fabs(rdrift)/sdrift_;
     // smear measurement time
@@ -118,7 +116,6 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::simulateParticle(PKTRAJ& pktraj,THITCOL& thits, DXINGCOL& dxings) {
-    std::cout<<" simulate particle in Toy MC "<<std::endl;
     // create the seed first
     createTraj(pktraj);
     // divide time range
@@ -157,7 +154,6 @@ namespace KKTest {
   }
 
   template <class KTRAJ> double ToyMC<KTRAJ>::createStrawMaterial(PKTRAJ& pktraj, STRAWXING const& sxing) {
-    std::cout<<" cretae straw materials in Toy MC "<<std::endl;
     double desum = 0.0;
     double tstraw = sxing.crossingTime();
     auto const& endpiece = pktraj.nearestPiece(tstraw);
@@ -165,7 +161,7 @@ namespace KKTest {
     Mom4 endmom = endpiece.momentum(tstraw);
     Vec4 endpos; endpos.SetE(tstraw);
     endpiece.position(endpos);
-    std::array<double,3> dmom = {0.0,0.0,0.0}, momvar {0.0,0.0,0.0};
+    std::array<double,3> dmom {0.0,0.0,0.0}, momvar {0.0,0.0,0.0};
     sxing.momEffects(pktraj,TDir::forwards, dmom, momvar);
     for(int idir=0;idir<=LocalBasis::phidir; idir++) {
       auto mdir = static_cast<LocalBasis::LocDir>(idir);
@@ -184,21 +180,20 @@ namespace KKTest {
 	  throw std::invalid_argument("Invalid direction");
       }
       //	cout << "mom change dir " << LocalBasis::directionName(mdir) << " mean " << dmom[idir]  << " +- " << momsig << " value " << dm  << endl;
-      Vec3 dmvec;
-      DVEC pder;
-      endpiece.momDeriv(tstraw,mdir,pder,dmvec);
+      Vec3 dmvec = endpiece.direction(tstraw,mdir);
       dmvec *= dm*mom;
       endmom.SetCoordinates(endmom.Px()+dmvec.X(), endmom.Py()+dmvec.Y(), endmom.Pz()+dmvec.Z(),endmom.M());
     }
     // generate a new piece and append
-    KTRAJ newend(endpos,endmom,endpiece.charge(),endpiece.bnom(),TRange(tstraw,pktraj.range().high()));
-    //      newend.print(cout,1);
+    KTRAJ newend(endpos,endmom,endpiece.charge(),endpiece.bnom(),TRange(1,-1));
+    if(newend.range().infinite()) newend.setRange(TRange(1,-1));
+    //     newend.print(cout,1);
+    std::cout<<" Should set to: "<<TRange(tstraw,pktraj.range().high())<<" test : "<<newend.range()<<std::endl;
     pktraj.append(newend);
     return desum/mom;
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::createScintHit(PKTRAJ const& pktraj, THITCOL& thits) {
-    std::cout<<" create ScintHit in Toy MC "<<std::endl;
     // create a ScintHit at the end, axis parallel to z
     // first, find the position at showermax_.
     Vec3 shmpos, hend, lmeas;
@@ -234,14 +229,10 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::createSeed(KTRAJ& seed){
-    std::cout<<" create Seed Toy MC "<<std::endl;
     auto& seedpar = seed.params();
     // propagate the momentum and position variances to parameter variances
-    DVEC pder;
-    Vec3 unit;
     for(int idir=0;idir<LocalBasis::ndir;idir++){
-      std::cout<<"getting mom var================================"<<std::endl;
-      seed.momDeriv(seed.range().mid(),LocalBasis::LocDir(idir),pder,unit);
+      DVEC pder = seed.momDeriv(seed.range().mid(),LocalBasis::LocDir(idir));
       // convert derivative vector to a Nx1 matrix
       ROOT::Math::SMatrix<double,KTRAJ::NParams(),1> dPdm;
       dPdm.Place_in_col(pder,0,0);
@@ -257,7 +248,7 @@ namespace KKTest {
 
     // now, randomize the parameters within those errors.  Don't include correlations
     if(smearseed_){
-      for(unsigned ipar=0;ipar < 6; ipar++){
+      for(unsigned ipar=0;ipar < KTRAJ::NParams(); ipar++){
 	double perr = sqrt(seedpar.covariance()[ipar][ipar]);
 	seedpar.parameters()[ipar] += tr_.Gaus(0.0,perr);
       }
@@ -265,7 +256,6 @@ namespace KKTest {
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::extendTraj(PKTRAJ& pktraj,double htime) {
-    std::cout<<" extend traj in Toy MC "<<std::endl;
     ROOT::Math::SMatrix<double,3> bgrad;
     Vec3 pos,vel, dBdt;
     pos = pktraj.position(htime);
@@ -275,24 +265,25 @@ namespace KKTest {
     if(dBdt.R() != 0.0){
       TRange prange(pktraj.back().range().low(),pktraj.back().range().low());
       pktraj.back().rangeInTolerance(prange,bfield_, tol_);
-      prange.low() = prange.high();
-      do {
-	pktraj.back().rangeInTolerance(prange,bfield_, tol_);
-//	std::cout << " Range " << prange << std::endl;
-	Vec4 pos; pos.SetE(prange.low());
-	Mom4 mom =  pktraj.momentum(prange.low());
-	pktraj.position(pos);
-	Vec3 bf = bfield_.fieldVect(pos.Vect());
-	KTRAJ newend(pos,mom,pktraj.charge(),bf,prange);
-	pktraj.append(newend);
+      if(prange.high() > htime) {
+	return;
+      } else {
 	prange.low() = prange.high();
-      } while(prange.high() < htime);
+	do {
+	  pktraj.back().rangeInTolerance(prange,bfield_, tol_);
+	  Vec4 pos; pos.SetE(prange.low());
+	  Mom4 mom =  pktraj.momentum(prange.low());
+	  pktraj.position(pos);
+	  Vec3 bf = bfield_.fieldVect(pos.Vect());
+	  KTRAJ newend(pos,mom,pktraj.charge(),bf,prange);
+	  pktraj.append(newend);
+	  prange.low() = prange.high();
+	} while(prange.high() < htime);
+      }
     }
-//    std::cout << "Extended traj " << pktraj << std::endl;
   }
 
   template <class KTRAJ> void ToyMC<KTRAJ>::createTraj(PKTRAJ& pktraj) {
-    std::cout<<" create traj in Toy MC "<<std::endl;
     // randomize the position and momentum
     double tphi = tr_.Uniform(-M_PI,M_PI);
     double tcost = tr_.Uniform(ctmin_,ctmax_);
@@ -305,5 +296,4 @@ namespace KKTest {
     pktraj = PKTRAJ(ktraj);
   }
 }
-
-
+#endif

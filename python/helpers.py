@@ -102,8 +102,8 @@ def defineMergeFlags( debug_level):
        extraFlags = [ '-O3', '-fno-omit-frame-pointer', '-DNDEBUG' ]
        pass
    if debug_level == 'debug':
-      # extraFlags = [ '-O0'  ]
-       extraFlags = [ '-O0', '-ferror-limit=0'  ] #sadly this isn't supported by gcc
+       extraFlags = [ '-O0'  ]
+#       extraFlags = [ '-O0', '-ferror-limit=0'  ] sadly this isn't supported by gcc
        pass
    return [ commonFlags, extraFlags ]
 
@@ -195,11 +195,11 @@ class build_helper:
 #
     def dict_tmp_name(self):
         relpath = os.path.relpath('.',self.buildBase)
-        return '#/tmp/src/' + relpath + '/' + self.libname() + '_dict.cpp'
+        return '#/tmp/' + relpath + '/' + self.libname() + '_dict.cpp'
 
     def map_tmp_name(self):
         relpath = os.path.relpath('.',self.buildBase)
-        return '#/tmp/src/' + relpath + '/' + self.libname() + '_map.cpp'
+        return '#/tmp/' + relpath + '/' + self.libname() + '_map.cpp'
 
     def dict_libname(self):
         relpath = os.path.relpath('.',self.buildBase)

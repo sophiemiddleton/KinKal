@@ -135,6 +135,7 @@ int test(int argc, char **argv) {
   double ttime;
   double tstp = lhel.range().range()/9;
   for(int istep=0;istep<10;istep++){
+    cout<<" At Step "<<istep<<endl;
     ttime = lhel.range().low() + istep*tstp;
     tvel = lhel.velocity(ttime);
     tdir = lhel.direction(ttime);

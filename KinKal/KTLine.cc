@@ -20,47 +20,47 @@ namespace KinKal {
     */ 
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) :     
-  KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {std::cout<<" Constructor 1 "<<speed()<<std::endl;}
+  KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {    std::cout<<" KT Constructor 1 "<<std::endl;}
 
   KTLine::KTLine(Vec4 const& pos0, Mom4 const& mom0, int charge, Vec3 const& bnom, TRange const& range)
-  : TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range),  trange_(range), bnom_(bnom), pos40_(pos0), mom_(mom0), charge_(charge) {
-    mass_ = mom0.M();
-    cout<<"Contructor 2 "<<endl;
-
-  }
+  : TLine(pos0.Vect(), (mom0.Vect()/mom0.E())*CLHEP::c_light, pos0.T(), range), bnom_(bnom), pos40_(pos0), mom_(mom0), charge_(charge) {mass_ = mom0.M();    std::cout<<" KT Constructor 2 "<<std::endl;}
 
   KTLine::KTLine( PDATA const& pdata, double mass, int charge, double bnom, TRange const& range)
-  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){std::cout<<" Constructor 3 "<<speed()<<std::endl;} 
+  : KTLine(pdata,mass,charge,Vec3(0.0,0.0,bnom),range){    std::cout<<" KT Constructor 3 "<<std::endl;} 
 
   KTLine::KTLine( PDATA const& pdata, double mass, int charge, Vec3 const& bnom, TRange const& range)
-  : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range) {std::cout<<" Constructor 4 "<<speed()<<std::endl;}
+  : KTLine(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range) {std::cout<<" KT Constructor 4 "<<range<<std::endl;}
   
-  KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &trange) :  TLine(pvec, pcov), trange_(trange), bnom_(bnom), mass_(mass), charge_(charge), pars_(pvec, pcov){
-  //setspeed(297.2);
-  std::cout<<" Constructor 5 "<<speed()<<std::endl;
+  KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &trange) :  TLine(pvec, pcov),  bnom_(bnom), mass_(mass), charge_(charge), pars_(pvec, pcov){std::cout<<" KT Constructor 5 "<<std::endl;}
 
-}
+KTLine::KTLine( PDATA const& pdata, KTLine const& other) : KTLine(other) {
+    pars_ = pdata;
+    std::cout<<" KT Constructor 6 "<<other.range()<<std::endl;
+  }
 
-KTLine::KTLine(PDATA const& pdata, KTLine const& ktline) : TLine(ktline.pos40_.Vect(), (ktline.mom_.Vect()/ktline.mom_.E())*CLHEP::c_light, ktline.pos40_.T(), ktline.trange_), KTLine(pdata.parameters(),pdata.covariance(),ktline.mass_,ktline.charge_,ktline.bnom_,ktline.trange_) {std::cout<<" Constructor 6 "<<std::endl;};
+
+/*KTLine::KTLine(PDATA const& pdata, KTLine const& ktline) : TLine(ktline.pos40_.Vect(), (ktline.mom_.Vect()/ktline.mom_.E())*CLHEP::c_light, ktline.pos40_.T(), ktline.trange_), KTLine(pdata.parameters(),pdata.covariance(),ktline.mass_,ktline.charge_,ktline.bnom_,ktline.trange_) {std::cout<<" Constructor 6 "<<std::endl;};*/
 
   string KTLine::trajName_("KTLine");  
   string const& KTLine::trajName() { return trajName_; }
 
+  Vec4 KTLine::pos4(double time) const {
+    Vec3 temp = position(time);
+    return Vec4(temp.X(),temp.Y(),temp.Z(),time);
+  }
+
   void KTLine::momentum(double tval, Mom4& mom) const{
-    cout<<" mom mag 1 "<<momentumMag(tval)<<" "<<gamma()<<" "<<mass_<<" "<<beta()<<endl;
-    mom.SetPx(momentumMag(tval)*sinTheta() * sinPhi0());
-    mom.SetPy(momentumMag(tval)*sinTheta() * cosPhi0());
-    mom.SetPz(momentumMag(tval)*cosTheta());
+    mom.SetPy(momentumMag(tval)*dir().y());
+    mom.SetPz(momentumMag(tval)*dir().z());
     mom.SetM(mass_);
 
   }
 
   Mom4 KTLine::momentum(double tval) const{
     Mom4 mom;
-    cout<<" mom mag 2 "<<momentumMag(tval)<<" "<<gamma()<<" "<<mass_<<" "<<beta()<<speed()<<endl;
-    mom.SetPx(momentumMag(tval)*sinTheta() * sinPhi0());
-    mom.SetPy(momentumMag(tval)*sinTheta() * cosPhi0());
-    mom.SetPz(momentumMag(tval)*cosTheta());
+    mom.SetPx(momentumMag(tval)*dir().x());
+    mom.SetPy(momentumMag(tval)*dir().y());
+    mom.SetPz(momentumMag(tval)*dir().z());
     mom.SetM(mass_);
     return mom_;
   }
@@ -94,9 +94,9 @@ parameterization than that used for the helix case.
       return u;
     break;
       case LocalBasis::momdir: // along momentum: check.
-      u.SetX(sinTheta() * sinPhi0());
-      u.SetY(sinTheta() * cosPhi0());
-      u.SetZ(cosTheta());
+      u.SetX(dir().x());
+      u.SetY(dir().y());
+      u.SetZ(dir().z());
       cout<<" Unit in mom "<<u<<endl;
       return u;
     break;
@@ -110,7 +110,9 @@ parameterization than that used for the helix case.
   }
 
 // derivatives of momentum projected along the given basis WRT the 5 parameters
-  void KTLine::momDeriv(double t, LocalBasis::LocDir mdir, DVEC &pder, Vec3& u) const{
+   KTLine::DVEC KTLine::momDeriv(double t, LocalBasis::LocDir mdir) const{
+    Vec3 u;
+    DVEC pder;
     // compute some useful quantities
     double dt = t-t0();
     double l = CLHEP::c_light * beta() * (dt);
@@ -147,6 +149,7 @@ parameterization than that used for the helix case.
           default:
 	    throw std::invalid_argument("Invalid direction");
         }
+      return pder;
   }
   
 

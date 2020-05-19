@@ -16,6 +16,7 @@
 #include "KinKal/DXing.hh"
 #include "KinKal/KKTrk.hh"
 #include "UnitTests/ToyMC.hh"
+#include "UnitTests/KKHitInfo.hh"
 #include "CLHEP/Units/PhysicalConstants.h"
 
 #include <iostream>
@@ -73,10 +74,6 @@ int FitTest(int argc, char **argv) {
     }
   };
 
-  struct KKHitInfo {
-    Float_t resid_, residvar_, chiref_, chifit_;
-    static std::string leafnames() { return std::string("resid/f:residvar/f:chiref/f:chifit/f"); }
-  };
 
   // define the typedefs: to change to a different trajectory implementation, just change this line
   typedef PKTraj<KTRAJ> PKTRAJ;
@@ -235,17 +232,14 @@ int FitTest(int argc, char **argv) {
     bnom = Vec3(0.0,0.0,Bz);
   }
   // create ToyMC
-std::cout<<"Fit TEST Point 1  "<<std::endl;
   simmass = masses[isimmass];
   fitmass = masses[ifitmass];
   KKTest::ToyMC<KTRAJ> toy(*BF, mom, icharge, zrange, iseed, nhits, simmat, lighthit, ambigdoca, simmass );
   // generate hits
-std::cout<<"Fit TEST Point 2 "<<std::endl;
   THITCOL thits; // this program shares hit ownership with KKTrk
   DXINGCOL dxings; // this program shares det xing ownership with KKTrk
   PKTRAJ tptraj;
   toy.simulateParticle(tptraj, thits, dxings);
-std::cout<<"Fit TEST Point 3  "<<std::endl;
   // temporary FIXME!
   toy.setSmearSeed(false);
   cout << "True initial " << tptraj.front() << endl;
@@ -253,21 +247,19 @@ std::cout<<"Fit TEST Point 3  "<<std::endl;
 //  cout << "True " << tptraj << endl;
   double startmom = tptraj.momentumMag(tptraj.range().low());
   double endmom = tptraj.momentumMag(tptraj.range().high());
-std::cout<<"Fit TEST Point 4 "<<std::endl;
   Vec3 end, bend;
   bend = tptraj.front().direction(tptraj.range().high());
   end = tptraj.back().direction(tptraj.range().high());
   double angle = ROOT::Math::VectorUtil::Angle(bend,end);
-std::cout<<"Fit TEST Point 5  "<<std::endl;
   cout << "total momentum change = " << endmom-startmom << " total angle change = " << angle << endl;
   // create the fit seed by randomizing the parameters at the middle.  Overrwrite to use the fit BField
   auto const& midhel = tptraj.nearestPiece(0.0);
-  KTRAJ seedtraj(midhel.params(),fitmass,midhel.charge(),bnom,midhel.range());
-std::cout<<"Fit TEST Point 6  "<<std::endl;
+  auto seedmom = midhel.momentum(0.0);
+  seedmom.SetM(fitmass);
+  KTRAJ seedtraj(midhel.pos4(0.0),seedmom,midhel.charge(),bnom,midhel.range());
   if(invert) seedtraj.invertCT(); // for testing wrong propagation direction
   toy.createSeed(seedtraj);
   cout << "Seed params " << seedtraj.params().parameters() <<" covariance " << endl << seedtraj.params().covariance() << endl;
-std::cout<<"Fit TEST Point 7  "<<std::endl;
   // Create the KKTrk from these hits
   //
   KKCONFIGPTR configptr = make_shared<KKConfig>(*BF);
@@ -277,20 +269,17 @@ std::cout<<"Fit TEST Point 7  "<<std::endl;
   configptr->addmat_ = fitmat;
   configptr->tol_ = tol;
   configptr->plevel_ = (KKConfig::printLevel)detail;
-std::cout<<"Fit TEST Point 8  "<<std::endl;
   // add schedule; MC-truth based ambiguity
   MConfig mconfig;
   mconfig.updatemat_ = mconfig.updatebfcorr_ = false ;
   mconfig.updatehits_ = updatehits;
   mconfig.hitupdateparams_.push_back(make_any<WHUParams>(ambigdoca,100.0)); // 1st parameter turns off drift, 2nd says accept all hits
-std::cout<<"Fit TEST Point 9 "<<std::endl;
   mconfig.temp_ = maxtemp; // first
 //  mconfig.convdchisq_ = 1.0; // initially crude 
   mconfig.convdchisq_ = convdchisq; 
   mconfig.divdchisq_ = 1000*mconfig.convdchisq_;
   mconfig.oscdchisq_ = 10*mconfig.convdchisq_;
   configptr->schedule_.push_back(mconfig);
-std::cout<<"Fit TEST Point 10  "<<std::endl;
   double tstep = maxtemp/(std::max(nmeta,(unsigned)1));
   double temp = maxtemp;
   for(unsigned imeta = 0; imeta< nmeta; imeta++){
@@ -300,7 +289,6 @@ std::cout<<"Fit TEST Point 10  "<<std::endl;
     mconfig.updatebfcorr_ = true;
     configptr->schedule_.push_back(mconfig);
   }
-std::cout<<"Fit TEST Point 11 "<<std::endl;
   cout << *configptr << endl;
 // create and fit the track
   KKTRK kktrk(configptr,seedtraj,thits,dxings);
@@ -308,9 +296,11 @@ std::cout<<"Fit TEST Point 11 "<<std::endl;
   TFile fitfile(tfname.c_str(),"RECREATE");
   // tree variables
   KTRAJPars ftpars_, etpars_, spars_, ffitpars_, ffiterrs_, efitpars_, efiterrs_;
-  double chisq_, etmom_, ftmom_, ffmom_, efmom_, chiprob_;
-  double fft_,eft_;
-  int ndof_, niter_, status_;
+  float chisq_, etmom_, ftmom_, ffmom_, efmom_, chiprob_;
+  float fft_,eft_;
+  int ndof_, niter_, status_, igap_;
+  float maxgap_, avgap_;
+
   if(ntries <=0 ){
     // draw the fit result
     TCanvas* pttcan = new TCanvas("pttcan","PieceKTRAJ",1000,1000);
@@ -325,7 +315,6 @@ std::cout<<"Fit TEST Point 11 "<<std::endl;
       Vec3 ppos = fithel.position(tp);
       fitpl->SetPoint(ip,ppos.X(),ppos.Y(),ppos.Z());
     }
-std::cout<<"Fit TEST Point 12  "<<std::endl;
     fitpl->Draw();
 // now draw the truth
     TPolyLine3D* ttpl = new TPolyLine3D(np);
@@ -338,7 +327,6 @@ std::cout<<"Fit TEST Point 12  "<<std::endl;
       ttpl->SetPoint(ip,ppos.X(),ppos.Y(),ppos.Z());
     }
     ttpl->Draw();
-std::cout<<"Fit TEST Point 13 "<<std::endl;
     // draw the hits
     std::vector<TPolyLine3D*> htpls;
     for(auto const& thit : thits) {
@@ -362,7 +350,6 @@ std::cout<<"Fit TEST Point 13 "<<std::endl;
       line->Draw();
       htpls.push_back(line);
     }
-std::cout<<"Fit TEST Point 14  "<<std::endl;
 
     // draw the origin and axes
     TAxis3D* rulers = new TAxis3D();
@@ -377,7 +364,7 @@ std::cout<<"Fit TEST Point 14  "<<std::endl;
 
   } else {
     TTree* ftree(0);
-    vector<KKHitInfo> hinfo;
+    KKHIV hinfo;
     if(ttree){
       ftree = new TTree("fit","fit");
       ftree->Branch("ftpars.", &ftpars_,KTRAJPars::leafnames().c_str());
@@ -398,6 +385,9 @@ std::cout<<"Fit TEST Point 14  "<<std::endl;
       ftree->Branch("efmom", &efmom_,"efmom/F");
       ftree->Branch("fft", &fft_,"fft/F");
       ftree->Branch("eft", &eft_,"eft/F");
+      ftree->Branch("maxgap", &maxgap_,"maxgap/F");
+      ftree->Branch("avgap", &avgap_,"avgap/F");
+      ftree->Branch("igap", &igap_,"igap/I");
       ftree->Branch("hinfo",&hinfo);
     }
     // now repeat this to gain statistics
@@ -449,8 +439,11 @@ std::cout<<"Fit TEST Point 14  "<<std::endl;
       thits.clear();
       dxings.clear();
       toy.simulateParticle(tptraj,thits,dxings);
-      auto const& midhel = tptraj.nearestPiece(tptraj.range().mid());
-      KTRAJ seedtraj(midhel.params(),fitmass,midhel.charge(),bnom,midhel.range());
+      double tmid = tptraj.range().mid();
+      auto const& midhel = tptraj.nearestPiece(tmid);
+      auto seedmom = midhel.momentum(tmid);
+      seedmom.SetM(fitmass);
+      KTRAJ seedtraj(midhel.pos4(tmid),seedmom,midhel.charge(),bnom,midhel.range());
       if(invert)seedtraj.invertCT();
       toy.createSeed(seedtraj);
       auto start = Clock::now();
@@ -459,30 +452,39 @@ std::cout<<"Fit TEST Point 14  "<<std::endl;
       duration += std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count();
       // compare parameters at the first traj of both true and fit
       // correct the true parameters in case the BField isn't nominal
-std::cout<<"Fit TEST Point 15  "<<std::endl;
+      KTRAJ const& fftraj = kktrk.fitTraj().nearestPiece(tptraj.range().low());
+      KTRAJ const& bftraj = kktrk.fitTraj().nearestPiece(tptraj.range().high());
+      KTRAJ const& fttraj = tptraj.nearestPiece(tptraj.range().low());
+      KTRAJ const& bttraj = tptraj.nearestPiece(tptraj.range().high());
       typename KTRAJ::PDATA ftpars, btpars; 
-      if((kktrk.fitTraj().front().bnom() - tptraj.front().bnom()).R() < 1e-6){
-	ftpars = tptraj.front().params();
-	btpars = tptraj.back().params();
+      if((fftraj.bnom() - fttraj.bnom()).R() < 1e-6){
+	ftpars = fftraj.params();
+	btpars = bftraj.params();
       } else {
 	Mom4 fmom, bmom;
 	Vec4 fpos, bpos;
-	tptraj.front().position(fpos);
-	tptraj.back().position(bpos);
-	fpos.SetE(tptraj.front().range().mid());
-	bpos.SetE(tptraj.back().range().mid());
-	fmom = tptraj.front().momentum(fpos.T());
-	bmom = tptraj.back().momentum(bpos.T());
-	KTRAJ ft(fpos,fmom,tptraj.charge(),kktrk.fitTraj().front().bnom());
-	KTRAJ bt(bpos,bmom,tptraj.charge(),kktrk.fitTraj().back().bnom());
+	fftraj.position(fpos);
+	bftraj.position(bpos);
+	fpos.SetE(fttraj.range().mid());
+	bpos.SetE(bttraj.range().mid());
+	fmom = fttraj.momentum(fpos.T());
+	bmom = bttraj.momentum(bpos.T());
+	KTRAJ ft(fpos,fmom,tptraj.charge(),fftraj.bnom());
+	KTRAJ bt(bpos,bmom,tptraj.charge(),bftraj.bnom());
 	ftpars = ft.params();
 	btpars = bt.params();
       }
       // fit parameters
-      auto const& ffpars = kktrk.fitTraj().front().params();
-      auto const& bfpars = kktrk.fitTraj().back().params();
-      std::cout<<"Fit TEST Point 16  "<<std::endl;
-     // momentum
+      auto const& ffpars = fftraj.params();
+      auto const& bfpars = bftraj.params();
+      double maxgap, avgap;
+      size_t igap;
+      kktrk.fitTraj().gaps(maxgap, igap, avgap);
+      maxgap_ = maxgap;
+      avgap_ = avgap;
+      igap_ = igap;
+
+      // momentum
       // accumulate parameter difference and pull
       vector<double> cerr(6,0.0), bcerr(6,0.0);
       for(size_t ipar=0;ipar< KTRAJ::NParams(); ipar++){
@@ -504,7 +506,6 @@ std::cout<<"Fit TEST Point 15  "<<std::endl;
 	  corravg->Fill(ipar,jpar,fabs(corr));
 	}
       }
-std::cout<<"Fit TEST Point 17  "<<std::endl;
       // accumulate chisquared info
       unsigned niter(0), nfail(0), ndiv(0);
       for(auto const& fstat: kktrk.history()){
@@ -523,19 +524,19 @@ std::cout<<"Fit TEST Point 17  "<<std::endl;
       chisqprob->Fill(chiprob_);
       logchisqprob->Fill(log10(chiprob_));
       // fill tree
-      for(size_t ipar=0;ipar<seedtraj.NParams();ipar++){
+      for(size_t ipar=0;ipar<seedtraj.npars_;ipar++){
 	spars_.pars_[ipar] = seedtraj.params().parameters()[ipar];
-	ftpars_.pars_[ipar] = tptraj.front().params().parameters()[ipar];
-	etpars_.pars_[ipar] = tptraj.back().params().parameters()[ipar];
-	ffitpars_.pars_[ipar] = kktrk.fitTraj().front().params().parameters()[ipar];
-	efitpars_.pars_[ipar] = kktrk.fitTraj().back().params().parameters()[ipar];
-	ffiterrs_.pars_[ipar] = sqrt(kktrk.fitTraj().front().params().covariance()(ipar,ipar));
-	efiterrs_.pars_[ipar] = sqrt(kktrk.fitTraj().back().params().covariance()(ipar,ipar));
+	ftpars_.pars_[ipar] = fttraj.params().parameters()[ipar];
+	etpars_.pars_[ipar] = bttraj.params().parameters()[ipar];
+	ffitpars_.pars_[ipar] = fftraj.params().parameters()[ipar];
+	efitpars_.pars_[ipar] = bftraj.params().parameters()[ipar];
+	ffiterrs_.pars_[ipar] = sqrt(fftraj.params().covariance()(ipar,ipar));
+	efiterrs_.pars_[ipar] = sqrt(bftraj.params().covariance()(ipar,ipar));
       }
-      ftmom_ = tptraj.front().momentumMag(tptraj.range().low());
-      etmom_ = tptraj.back().momentumMag(tptraj.range().high());
-      ffmom_ = kktrk.fitTraj().front().momentumMag(kktrk.fitTraj().range().low());
-      efmom_ = kktrk.fitTraj().back().momentumMag(kktrk.fitTraj().range().high());
+      ftmom_ = fttraj.momentumMag(tptraj.range().low());
+      etmom_ = bttraj.momentumMag(tptraj.range().high());
+      ffmom_ = fftraj.momentumMag(tptraj.range().low());
+      efmom_ = bftraj.momentumMag(tptraj.range().high());
       fft_ = kktrk.fitTraj().range().low();
       eft_ = kktrk.fitTraj().range().high();
       chisq_ = fstat.chisq_;
@@ -620,4 +621,3 @@ std::cout<<"Fit TEST Point 17  "<<std::endl;
   fitfile.Close();
   exit(EXIT_SUCCESS);
 }
-

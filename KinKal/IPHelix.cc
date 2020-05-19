@@ -82,30 +82,22 @@ namespace KinKal {
     return dphi;
   }
 
-  IPHelix::IPHelix(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range) : IPHelix(pdata.parameters(),pdata.covariance(),mass,charge,bnom,range) {}
-
-
-  IPHelix::IPHelix(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom,
-                 TRange const &trange) :  trange_(trange), pars_(pvec, pcov), mass_(mass), charge_(charge), bnom_(bnom)
-  {
-    double momToRad = 1000.0 / (charge_ * bnom_.R() * CLHEP::c_light);
-    mbar_ = -mass_ * momToRad;
+  IPHelix::IPHelix(PDATA const &pdata, IPHelix const& other) : IPHelix(other) {
+    pars_ = pdata;
   }
 
   void IPHelix::position(Vec4 &pos) const
-  {
-    double cDip = cosDip();
-    double phi00 = phi0();
-    double l = CLHEP::c_light * beta() * (pos.T() - t0()) * cDip;
-    double ang = phi00 + l * omega();
-    double cang = cos(ang);
-    double sang = sin(ang);
-    double sphi0 = sin(phi00);
-    double cphi0 = cos(phi00);
+ {
+    Vec3 pos3 = position(pos.T());
+    pos.SetPx(pos3.X());
+    pos.SetPy(pos3.Y());
+    pos.SetPz(pos3.Z());
+  }
 
-    pos.SetPx((sang - sphi0) / omega() - d0() * sphi0);
-    pos.SetPy(-(cang - cphi0) / omega() + d0() * cphi0);
-    pos.SetPz(z0() + l * tanDip());
+  Vec4 IPHelix::pos4(double time) const
+ {
+    Vec3 pos3 = position(time);
+    return Vec4( pos3.X(), pos3.Y(), pos3.Z(), time);
   }
 
   Vec3 IPHelix::position(double t) const
@@ -178,7 +170,7 @@ namespace KinKal {
     }
   }
 
-  void IPHelix::momDeriv(double time, LocalBasis::LocDir mdir, DVEC &pder,Vec3& unit) const
+  IPHelix::DVEC IPHelix::momDeriv(double time, LocalBasis::LocDir mdir) const
   {
     // FIXME: these formulas need to be verified
     // compute some useful quantities
@@ -187,7 +179,7 @@ namespace KinKal {
     double omval = omega();
     double l = translen(CLHEP::c_light * beta() * (time - t0()));
     double d0val = d0();
-    unit = direction(time,mdir);
+    DVEC pder;
     // cases
     switch ( mdir ) {
       case LocalBasis::perpdir:
@@ -220,6 +212,7 @@ namespace KinKal {
       default:
         throw std::invalid_argument("Invalid direction");
     }
+    return pder;
   }
 
   std::ostream& operator <<(std::ostream& ost, IPHelix const& hhel) {

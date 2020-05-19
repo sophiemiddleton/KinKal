@@ -53,12 +53,15 @@ namespace KinKal {
       // speed in mm/ns
       void print(std::ostream& ost, int detail) const;
       void rangeInTolerance(TRange& range, BField const& bfield, double tol) const {};//infinity for striaght line
-
+     /* void setrange(double low, double high) const { 
+        trange_.low() = low;
+        trange_.high() = high;
+       }*/
       // local momentum direction basis
       Vec3 direction(double time, LocalBasis::LocDir mdir=LocalBasis::momdir) const;
-
+      Vec4 pos4(double time) const;
       // momentum change derivatives; this is required to instantiate a KalTrk 
-      void momDeriv(double time, LocalBasis::LocDir mdir, DVEC &der, Vec3& uni) const;
+      KTLine::DVEC momDeriv(double time, LocalBasis::LocDir mdir) const ;
 
       //some possibly useful equations:
       double mass() const{ 
@@ -92,7 +95,7 @@ namespace KinKal {
       }
 
     private :
-      TRange trange_;
+     // TRange trange_;
       Vec3 bnom_; //should be 0,0,0
       bool needsrot_; // logical flag if Bnom is parallel to global Z or not
       ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system (along B) to the global

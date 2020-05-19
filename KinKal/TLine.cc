@@ -27,10 +27,10 @@ namespace KinKal {
   std::string const& TLine::paramTitle(ParamIndex index) { return paramTitles_[static_cast<size_t>(index)];}
   std::string const& TLine::paramUnit(ParamIndex index) { return paramUnits_[static_cast<size_t>(index)];}
 
-  TLine::TLine(Vec4 const& pos0, Vec3 const& svel, TRange const& range,bool forcerange) : TLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {}
+  TLine::TLine(Vec4 const& pos0, Vec3 const& svel, TRange const& range,bool forcerange) : TLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {    std::cout<<" Constructor 1 "<<trange_<<std::endl;}
 
   TLine::TLine(Vec3 const& pos0, Vec3 const& svel, double tmeas, TRange const& range, bool forcerange)  : trange_(range),speed_(sqrt(svel.Mag2())), pos0_(pos0), dir_(svel.Unit()), forcerange_(forcerange) {
-    cout<<"Input speed into Tline "<<speed_<<endl;
+    cout<<"Direction passed int TLine "<<dir_<<endl;
     static const Vec3 zdir(0.0,0.0,1.0);
     double zddot = zdir.Dot(dir_);
     param(cost_) = zddot;
@@ -38,19 +38,18 @@ namespace KinKal {
     param(phi0_) = atan2(pos0_.Y(),pos0_.X());
     param(z0_) = pos0_.Z();
     param(t0_) = tmeas;
+    std::cout<<" Constructor 2 "<<trange_<<std::endl;
   }
 
   void TLine::position(Vec4& pos) const {
-   
     Vec3 pos3 = position(pos.T());
-    std::cout<<" position from vec4 "<<std::endl;
     pos.SetXYZT(pos3.X(),pos3.Y(),pos3.Z(),pos.T());
   }
 
 
   Vec3 TLine::position(double time) const {
     if(forceRange()) range().forceRange(time);
-    std::cout<<" postion from time "<<(pos0() + ((time-t0())*speed())*dir())<<" pos0 "<<pos0()<<" dir "<<dir()<<std::endl;
+    std::cout<<" postion from time "<<(pos0() + ((time-t0())*speed())*dir())<<" pos0 "<<pos0()<<" dir "<<dir()<<" time "<<time<<" t0 "<<t0()<<std::endl;
     return (pos0() + ((time-t0())*speed())*dir());
   }
 
