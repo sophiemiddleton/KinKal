@@ -22,7 +22,7 @@ class KTLine {
       d0_ = 0,
       phi0_ = 1,
       z0_ = 2,
-      cost_ = 3,
+      tanl_ = 3,
       t0_ = 4,
       npars_ = 5
     };
@@ -45,32 +45,22 @@ class KTLine {
 
     // This also requires the nominal BField, which can be a vector (3d) or a
     // scalar (B along z)
-    KTLine(Vec4 const &pos, Mom4 const &mom, int charge, Vec3 const &bnom,
-           TRange const &range = TRange());
-    KTLine(Vec4 const &pos, Mom4 const &mom, int charge, double bnom,
-           TRange const &range = TRange());
+    KTLine(Vec4 const& pos, Mom4 const& mom, int charge, Vec3 const& bnom, TRange const& range=TRange());
+    KTLine(Vec4 const& pos, Mom4 const& mom, int charge, double bnom, TRange const& range=TRange());
+    // copy and override parameters
+    KTLine(PDATA const &pdata, KTLine const& other); 
 
-    KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom,
-           TRange const &range = TRange());
-    KTLine(PDATA const &pdata, double mass, int charge, double bnom,
-           TRange const &range = TRange());
-
-    KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass,
-           int charge, Vec3 const &bnom, TRange const &range = TRange());
-
-    KTLine(PDATA const &pdata, const KTLine &ktline);
-
-    KTLine(Vec4 const &p0, Vec3 const &svel, TRange const &range = TRange(),
+    /*KTLine(Vec4 const &p0, Vec3 const &svel, TRange const &range = TRange(),
            bool forcerange = false);
     KTLine(Vec3 const &p0, Vec3 const &svel, double tmeas,
-           TRange const &range = TRange(), bool forcerange = false);
+           TRange const &range = TRange(), bool forcerange = false);*/
 
-    //    TLine(PDATA const& pdata) : pars_(pdata){std::cout<<" T Constructor 3
-    //    "<<pdata<<std::endl;  };
-    KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov) : pars_(pvec, pcov) {};
+  //  KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov) : pars_(pvec, pcov) {};
 
     virtual ~KTLine() {}
 
+    double deltaPhi(double &phi, double refphi=0) const;
+    double translen(const double &f) const { return cosDip() * f; }
     // particle momentum as a function of time
     Mom4 momentum(double time) const;
     void momentum(double t, Mom4 &mom) const;
@@ -79,6 +69,7 @@ class KTLine {
     double momentumMag(double time) const {
       return gamma() * mass_ * beta();
     } // in MeV/c
+
     Mom4 mom() const { return mom_; }
     double momentumVar(double time) const { return -1.0; }
     double energy(double time) { return mom_.E(); }
@@ -90,16 +81,19 @@ class KTLine {
     double d0() const { return paramVal(d0_); }
     double phi0() const { return paramVal(phi0_); }
     double z0() const { return paramVal(z0_); }
-    double cost() const { return paramVal(cost_); }
+    double tanl() const { return paramVal(tanl_); }
     double t0() const { return paramVal(t0_); }
-
-    // simple functions
-    double cosTheta() const { return cost(); }
-    double sinTheta() const { return sqrt(1.0 - cost() * cost()); }
+    double vt() const { return vt_; }
+    double vz() const { return vz_; }
+    // simple function relating lambda to polar theta
+    double theta() const { return M_PI_2-atan(tanl()); }
+    double tanTheta() const { return sqrt(1.0 - cos(theta()) * cos(theta())/cos(theta())); }
+    double cosTheta() const { return cos(theta()); }
+    double sinTheta() const { return sqrt(1.0 -cos(theta())*cos(theta())); }
     double cosPhi0() const { return cos(phi0()); }
     double sinPhi0() const { return sin(phi0()); }
-    double theta() const { return acos(cost()); }
-    double tanTheta() const { return sqrt(1.0 - cost() * cost()) / cost(); }
+    double cosDip() const { return 1./sqrt(1.+ tanl() * tanl() ); }
+    double sinDip() const { return tanl()*cosDip(); }
 
     Vec3 const &dir() const { return dir_; }
 
@@ -151,6 +145,7 @@ class KTLine {
     }
 
   private:
+    double mbar_;  // reduced mass in units of mm, computed from the mass and nominal field
     Vec3 bnom_;     // should be 0,0,0
     bool needsrot_; // logical flag if Bnom is parallel to global Z or not
     ROOT::Math::Rotation3D brot_; // rotation from the internal coordinate system
@@ -168,7 +163,8 @@ class KTLine {
     // the trajectory (mm/nsec)
     Vec3 pos0_, dir_; // caches
     bool forcerange_; // if set, strictly enforce the range
-
+    double vt_; // transverse velocity
+    double vz_; // z velocity
     static std::vector<std::string> paramTitles_;
     static std::vector<std::string> paramNames_;
     static std::vector<std::string> paramUnits_;

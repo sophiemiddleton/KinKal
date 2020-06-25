@@ -105,7 +105,7 @@ namespace KinKal {
 
       //calculated these using BTrk instances - doc db ref ###
       dDdP_[KTLine::phi0_] = -dsign*(ktline.d0()*sin(ktline.phi0())*ddir.x()+ktline.d0()*cos(ktline.phi0())*ddir.y());
-      dDdP_[KTLine::cost_] = 0;
+      dDdP_[KTLine::tanl_] = 0;
       dDdP_[KTLine::d0_] = -dsign*(-1*cos(ktline.phi0())*ddir.x()+sin(ktline.phi0())*ddir.y());
       dDdP_[KTLine::z0_] = -dsign*ddir.z();
       // no spatial dependence, DT is purely temporal

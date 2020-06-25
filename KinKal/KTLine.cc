@@ -15,10 +15,10 @@ using namespace ROOT::Math;
 namespace KinKal {
   vector<string> KTLine::paramTitles_ = {
       "Transverse DOCA to Z Axis (d_{0})", "Azimuth of POCA (#phi_{0})",
-      "Z at POCA (z_{0})", "Cos #theta", "Time at POCA (t_{0})"};
+      "Z at POCA (z_{0})", "Tan #lambda", "Time at POCA (t_{0})"};
 
   vector<string> KTLine::paramNames_ = {"d_{0}", "#phi_{0}", "z_{0}",
-                                       "cos(#theta)", "t_{0}"};
+                                       "Tan #lambda", "t_{0}"};
 
   vector<string> KTLine::paramUnits_ = {"mm", "radians", "mm", "", "ns"};
 
@@ -39,53 +39,88 @@ namespace KinKal {
   string KTLine::trajName_("KTLine");
   string const &KTLine::trajName() { return trajName_; }
 
-  KTLine::KTLine(Vec4 const &pos0, Vec3 const &svel, TRange const &range, bool forcerange)
-      : KTLine(pos0.Vect(), svel, pos0.T(), range, forcerange) {
-    std::cout << " KTLine Constructor 1 " << trange_ << std::endl;
-  }
+  KTLine::KTLine( Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) : KTLine(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
 
-  KTLine::KTLine(Vec3 const &pos0, Vec3 const &svel, double tmeas, TRange const &range, bool forcerange)
-      : trange_(range), pars_(), speed_(sqrt(svel.Mag2())), pos0_(pos0),
-        dir_(svel.Unit()), forcerange_(forcerange) {
+  KTLine::KTLine(Vec4 const &pos0, Mom4 const &mom0, int charge, Vec3 const &bnom,
+  TRange const &trange) :  bnom_(bnom), mass_(mom0.M()), charge_(charge), trange_(trange)
+  {
+
+    pos40_ = pos0;
+    mom_ = mom0;
+    speed_ = (sqrt(((mom0.Vect() / mom0.E()) * CLHEP::c_light).Mag2()));
+    dir_ = ((mom0.Vect() / mom0.E()) * CLHEP::c_light).Unit();
+
     static const Vec3 zdir(0.0, 0.0, 1.0);
-    double zddot = zdir.Dot(dir_);
-    param(cost_) = zddot;
-    param(d0_) = pos0_.Rho();
-    param(phi0_) = atan2(pos0_.Y(), pos0_.X());
-    param(z0_) = pos0_.Z();
-    param(t0_) = tmeas;
+    //double zddot = zdir.Dot(dir_);
+    //param(cost_) = zddot;
+    param(t0_) = pos0.T() - (pos0.Z() - param(z0_)) / (cosTheta() * CLHEP::c_light * beta());
+
+ // Transform into the system where Z is along the Bfield.  This is a pure rotation about the origin
+    Vec4 pos(pos0);
+    Mom4 mom(mom0);
+    g2l_ = Rotation3D(AxisAngle(Vec3(sin(bnom_.Phi()),-cos(bnom_.Phi()),0.0),bnom_.Theta()));
+    if(fabs(g2l_(bnom_).Theta()) > 1.0e-6)throw invalid_argument("Rotation Error");
+    pos = g2l_(pos);
+    mom = g2l_(mom);
+    // create inverse rotation; this moves back into the original coordinate system
+    l2g_ = g2l_.Inverse();
+    double momToRad = 1.0/(BField::cbar()*charge_*bnom_.R());
+    mbar_ = -mass_ * momToRad;
+
+    double pt = sqrt(mom.perp2());
+    double radius = fabs(pt*momToRad);
+
+    double lambda = -mom.z()*momToRad;
+    double amsign = copysign(1.0, mbar_);
+
+    Vec3 center = Vec3(pos.x() + mom.y()*momToRad, pos.y() - mom.x()*momToRad, 0.0);
+    double rcent = sqrt(center.perp2());
+    double fcent = center.phi();
+    double centerx = rcent*cos(fcent);
+    double centery = rcent*sin(fcent);
+
+    param(tanl_) = amsign*(lambda)/radius;
+    param(d0_) = amsign*(rcent - radius);
+    param(phi0_) = atan2(-amsign * centerx, amsign * centery);
+
+    Vec3 pos3 = Vec3(pos.x(), pos.y(), pos.z());
+    double fz0 = (pos3 - center).phi() - pos3.z() / lambda;
+    deltaPhi(fz0); //TODO - delta Phi
+    double refphi = fz0+amsign*M_PI_2;
+    double phival = phi0();
+    double dphi = deltaPhi(phival, refphi);
+    param(z0_) = dphi * cosTheta(); //TODO
+
+    param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (cosTheta() * CLHEP::c_light * beta());
     cout << "In KTLine. Params set to: " << pars_.parameters() << endl;
+
+    /*vt_ = CLHEP::c_light * pt / mom.E();
+    vz_ = CLHEP::c_light * mom.z() / mom.E();
+    // test position and momentum function
+    Vec4 testpos(pos0);
+    // std::cout << "Testpos " << testpos << std::endl;
+    position(testpos);
+    Mom4 testmom = momentum(testpos.T());
+    auto dp = testpos.Vect() - pos0.Vect();
+    auto dm = testmom.Vect() - mom0.Vect();
+    if(dp.R() > 1.0e-5 || dm.R() > 1.0e-5) throw invalid_argument("Rotation Error");*/
   }
 
-  /*
-  KTLine can take in Momentum externally as a 4-vector or calculate it based. You
-  can initialize the line with an origin (pos0) or the trajectory parameters
-  (pdata)
-  */
-
-  KTLine::KTLine(Vec4 const &pos0, Mom4 const &mom0, int charge, double bnom,TRange const &range)
-      : KTLine(pos0, mom0, charge, Vec3(0.0, 0.0, bnom), range) {}
-
-  KTLine::KTLine(Vec4 const &pos40, Mom4 const &mom0, int charge, Vec3 const &bnom, TRange const &range)
-      : KTLine(pos40.Vect(), (mom0.Vect() / mom0.E()) * CLHEP::c_light, pos40.T(),range) {
-        bnom_ = bnom;
-        pos40_ = pos40;
-        mom_ = mom0;
-        charge_ = charge;
-        mass_ = mom0.M();
-  }
-
-  KTLine::KTLine(PDATA const &pdata, double mass, int charge, double bnom,TRange const &range)
-      : KTLine(pdata, mass, charge, Vec3(0.0, 0.0, bnom), range) {
-  }
-
-  KTLine::KTLine(PDATA const &pdata, double mass, int charge, Vec3 const &bnom, TRange const &range)
-      : KTLine(pdata.parameters(), pdata.covariance(), mass, charge, bnom, range) {}
-
-  KTLine::KTLine(PDATA::DVEC const &pvec, PDATA::DMAT const &pcov, double mass, int charge, Vec3 const &bnom, TRange const &trange) : KTLine(pvec, pcov) {
-    bnom_ = bnom;
-    mass_ = mass;
-    charge_ = charge;
+  double KTLine::deltaPhi(double &phi, double refphi) const
+  {
+    double dphi = phi - refphi;
+    static const double twopi = 2 * M_PI;
+    while (dphi > M_PI)
+    {
+      dphi -= twopi;
+      phi -= twopi;
+    }
+    while (dphi <= -M_PI)
+    {
+      dphi += twopi;
+      phi += twopi;
+    }
+    return dphi;
   }
 
   KTLine::KTLine(PDATA const &pdata, KTLine const &other) : KTLine(other) {
@@ -97,11 +132,20 @@ namespace KinKal {
     pos.SetXYZT(pos3.X(), pos3.Y(), pos3.Z(), pos.T());
   }
 
-  Vec3 KTLine::position(double time) const {
+ /* Vec3 KTLine::position(double time) const {
     if (forcerange_){
       range().forceRange(time);
     }
     return (pos0() + ((time - t0()) * speed()) * dir());
+  }*/
+
+ Vec3 KTLine::position(double time) const
+  {
+    double cDip = cosDip();
+    double l = CLHEP::c_light * beta() * (time - t0()) * cDip;
+    double sphi0 = sin(phi0());
+    double cphi0 = cos(phi0());
+    return l2g_(Vec3(-d0() * sphi0, d0() * cphi0, z0() + l * tanl()));
   }
 
   Vec4 KTLine::pos4(double time) const {
@@ -140,18 +184,11 @@ namespace KinKal {
 
     switch (mdir) {
     case LocalBasis::perpdir: // purely polar change theta 1 = theta
-      return l2g_(
-          Vec3(cosTheta() * sinPhi0(), cosTheta() * cosPhi0(), -1 * sinTheta()));
-      // alt dir
-      // l2g_(Vec3(cosTheta()*cosPhi0(),cosTheta()*sinPhi0(),-1*sinTheta()));
-      break;
+      return l2g_(Vec3(cosTheta()*cosPhi0(),cosTheta()*sinPhi0(),-1*sinTheta()));
     case LocalBasis::phidir: // purely transverse theta2 = -phi()*sin(theta)
-      return l2g_(Vec3(-cosPhi0(), sinPhi0(), 0.0));
-      // alt dir = l2g_(Vec3(-sinPhi0(),cosPhi0(),0.0));//;
-      break;
+      return l2g_(Vec3(-sinPhi0(),cosPhi0(),0.0));
     case LocalBasis::momdir: // along momentum: check.
-      return l2g_(Vec3(dir().x(), dir().y(), dir().z()));
-      break;
+      return l2g_(Vec3(sinTheta()*cosPhi0(),sinTheta()*sinPhi0(),cosTheta()));
     default:
       throw std::invalid_argument("Invalid direction");
     }
@@ -159,7 +196,46 @@ namespace KinKal {
 
   // derivatives of momentum projected along the given basis WRT the 5 parameters
   KTLine::DVEC KTLine::momDeriv(double time, LocalBasis::LocDir mdir) const {
-    // compute some useful quantities
+ // compute some useful quantities
+    double tanval = cosTheta()/sinTheta();
+    double cosval = sinTheta();
+    double l = translen(CLHEP::c_light * beta() * (time - t0()));
+    double d0val = d0();
+
+    DVEC pder;
+    // cases
+    switch ( mdir ) {
+      case LocalBasis::perpdir:
+        // polar bending: only momentum and position are unchanged
+        pder[d0_] = d0val;//tanval*(1-cos(omval*l))/omval;
+        pder[phi0_] = 0;//-tanval * sin(omval * l) / (1 + omval * d0val);
+        pder[z0_] = -l/cosDip();//- l - tanval * tanval * sin(omval * l) / (omval * (1 + omval * d0val));
+        pder[tanl_] = 1/(cosDip()*cosDip());
+        pder[t0_] = pder[z0_] / vz() + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;
+        break;
+      case LocalBasis::phidir:
+        // Azimuthal bending: R, Lambda, t0 are unchanged
+        pder[d0_] = -l*sinTheta();//-sin(omval * l) / (omval * cosval);
+        pder[phi0_] = 1/sinTheta();//cos(omval * l) / (cosval * (1 + omval * d0val));
+        pder[z0_] = -pder[d0_]/(sinTheta()*tanTheta());//-tanval / (omval * cosval) * (1 - cos(omval * l) / (1 + omval * d0val));
+        pder[tanl_] = 0;
+        pder[t0_] = pder[z0_] / vz();
+        break;
+      case LocalBasis::momdir:
+        // fractional momentum change: position and direction are unchanged
+        pder[d0_] = 0;
+        pder[phi0_] = 0;
+        pder[z0_] = 0;//-tanval * (l - sin(omval * l) / (omval * (1 + omval * d0val)));
+        pder[tanl_] = 0;
+        pder[t0_] = pder[z0_] / vz();
+        break;
+      default:
+        throw std::invalid_argument("Invalid direction");
+    }
+    return pder;    
+
+
+/* compute some useful quantities
     double vz = CLHEP::c_light * mom().z() / mom().E();
     double l = speed() * time;
     KTLine::DVEC pder;
@@ -179,7 +255,7 @@ namespace KinKal {
       // change in dP/dtheta1 = dP/dphi0*(-1/sintheta)
       pder[cost_] = 0;
       pder[d0_] = l;                 // alt dir = -l;
-      pder[phi0_] = -1 / sinTheta(); // alt dir = -1/sinTheta();
+      pder[phi0_] = 1 / sinTheta(); // alt dir = -1/sinTheta();
       pder[z0_] = d0() / (sinTheta() *
                           tanTheta()); // alt dir = -d0()/(sinTheta()*tanTheta());
       pder[t0_] = pder[z0_] / vz;
@@ -197,7 +273,7 @@ namespace KinKal {
     default:
       throw std::invalid_argument("Invalid direction");
     }
-    return pder;
+    return pder;*/
   }
 
   void KTLine::print(ostream &ost, int detail) const {

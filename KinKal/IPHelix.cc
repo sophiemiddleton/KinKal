@@ -29,6 +29,7 @@ namespace KinKal {
   string const& IPHelix::trajName() { return trajName_; }
 
   IPHelix::IPHelix( Vec4 const& pos0, Mom4 const& mom0, int charge, double bnom, TRange const& range) : IPHelix(pos0,mom0,charge,Vec3(0.0,0.0,bnom),range) {}
+
   IPHelix::IPHelix(Vec4 const &pos0, Mom4 const &mom0, int charge, Vec3 const &bnom,
                  TRange const &trange) : trange_(trange), mass_(mom0.M()), charge_(charge), bnom_(bnom)
   {
