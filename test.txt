@@ -80,7 +80,6 @@ namespace KinKal {
     double centery = rcent*sin(fcent);
 
     param(tanl_) = amsign*(lambda)/radius;
-cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::endl;
     param(d0_) = amsign*(rcent - radius);
     param(phi0_) = atan2(-amsign * centerx, amsign * centery);
 
@@ -91,7 +90,7 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
     double phival = phi0();
     double dphi = deltaPhi(phival, refphi);
     param(z0_) = dphi * cosTheta(); //TODO  pos.Z();
-    param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (sinDip() * CLHEP::c_light * beta());
+    param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (cosTheta() * CLHEP::c_light * beta());
     cout << "In KTLine. Params set to: " << pars_.parameters() << endl;
 
     vt_ = CLHEP::c_light * pt / mom.E();
@@ -244,7 +243,7 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
 
 // compute some useful quantities
     //double vz = CLHEP::c_light * mom().z() / mom().E();
-    double l = translen(CLHEP::c_light * beta() * (time - t0()));
+    double l = speed() * (time-t0());
     KTLine::DVEC pder;
     //cout << "Mom deriv start params " << pder << endl;
     // cases
@@ -260,10 +259,11 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
       break;
     case LocalBasis::phidir:
       // change in dP/dtheta1 = dP/dphi0*(-1/sintheta)
-      pder[tanl_] = 0;//GOOD
+      pder[tanl_] = 0;
       pder[d0_] = -l;                 // alt dir = -l;
-      pder[phi0_] = 1 / cosDip(); // alt dir = -1/sinTheta(); GOOD
-      pder[z0_] = -d0() / (sinTheta() * tanTheta()); // alt dir = -d0()/(sinTheta()*tanTheta());
+      pder[phi0_] = -1 / sinTheta(); // alt dir = -1/sinTheta();
+      pder[z0_] = -d0() / (sinTheta() *
+                          tanTheta()); // alt dir = -d0()/(sinTheta()*tanTheta());
       pder[t0_] = pder[z0_] / vz_;
       //cout << "Mom deriv phidir params " << pder << endl;
       break;
