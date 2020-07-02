@@ -147,8 +147,6 @@ namespace KinKal {
   are uncorrelated. These axes are track specific. as cosmics are not always
   coming along the same track direction it is necessary to have difference
   parameterization than that used for the helix case.
-  alt dir = a test with the "BTrk parameterization" - just changes signs due to
-  swithc in cos<->sin
   */
   Vec3  KTLine::direction(double t, LocalBasis::LocDir mdir) const {
 
@@ -195,7 +193,7 @@ namespace KinKal {
       pder[tanl_] = 0;//GOOD
       pder[d0_] = -l/cosDip();       
       pder[phi0_] = 1 / cosDip(); // alt dir = -1/sinTheta(); GOOD
-      pder[z0_] = 0;//-d0() / (sinTheta() * tanTheta());
+      pder[z0_] = 0;
       pder[t0_] = pder[z0_] / vz_;
       //cout << "Mom deriv phidir params " << pder << endl;
       break;
