@@ -99,14 +99,15 @@ namespace KinKal {
       Vec3 ddir;
       ddir = delta().Vect().Unit();// direction vector along D(POCA) from traj 2 to 1 (line to ktline)
       ktline.direction(particlePoca().T());//hidr
-
+      double time = particlePoca().T();
+      double l = ktline.translen(CLHEP::c_light * ktline.beta() * (time - ktline.t0()));
       // derviatives of TOCA and DOCA WRT particle trajectory parameters
       // no t0 dependence, DOCA is purely geometric
 
       //calculated these using BTrk instances - doc db ref ###
-      dDdP_[KTLine::phi0_] = -dsign*(ktline.d0()*sin(ktline.phi0())*ddir.x()+ktline.d0()*cos(ktline.phi0())*ddir.y());
-      dDdP_[KTLine::tanl_] = 0;
-      dDdP_[KTLine::d0_] = -dsign*(-1*cos(ktline.phi0())*ddir.x()+sin(ktline.phi0())*ddir.y());
+      dDdP_[KTLine::phi0_] = -dsign*(ktline.cosDip()*l*ktline.sinPhi0() - ktline.d0()*ktline.cosPhi0())*ddir.x()+(ktline.cosDip()*l*ktline.cosPhi0()-ktline.d0()*ktline.sinPhi0())*ddir.y();
+      dDdP_[KTLine::tanl_] = -dsign*l*ktline.tanl();
+      dDdP_[KTLine::d0_] = -dsign*(-1*ktline.sinPhi0()*ddir.x()+ktline.cosPhi0()*ddir.y());
       dDdP_[KTLine::z0_] = -dsign*ddir.z();
       // no spatial dependence, DT is purely temporal
       dTdP_[KTLine::t0_] = -1.0; // time is 100% correlated

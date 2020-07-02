@@ -50,10 +50,12 @@ namespace KinKal {
     speed_ = (sqrt(((mom0.Vect() / mom0.E()) * CLHEP::c_light).Mag2()));
     dir_ = ((mom0.Vect() / mom0.E()) * CLHEP::c_light).Unit();
 
-    //static const Vec3 zdir(0.0, 0.0, 1.0);
-    //double zddot = zdir.Dot(dir_);
-   // double theta = acos(zddot);
+    static const Vec3 zdir(0.0, 0.0, 1.0);
+    double zddot = zdir.Dot(dir_);
+    double theta = acos(zddot);
     param(t0_) = pos0.T() - (pos0.Z() - param(z0_)) / (cosTheta() * CLHEP::c_light * beta());
+    double lambda = M_PI_2 - theta;
+
 
  // Transform into the system where Z is along the Bfield.  This is a pure rotation about the origin
     Vec4 pos(pos0);
@@ -64,46 +66,21 @@ namespace KinKal {
     mom = g2l_(mom);
     // create inverse rotation; this moves back into the original coordinate system
     l2g_ = g2l_.Inverse();
-    double momToRad = 1.0/(BField::cbar()*charge_*bnom_.R());
-    mbar_ = -mass_ * momToRad;
 
     double pt = sqrt(mom.perp2());
-    double radius = fabs(pt*momToRad);
+    vt_ = CLHEP::c_light * pt / mom.E();
+    vz_ = CLHEP::c_light * mom.z() / mom.E();
 
-    double lambda = -mom.z()*momToRad;//M_PI_2 - theta;//
-    double amsign = copysign(1.0, mbar_);
-
-    Vec3 center = Vec3(pos.x() + mom.y()*momToRad, pos.y() - mom.x()*momToRad, 0.0);
-    double rcent = sqrt(center.perp2());
-    double fcent = center.phi();
-    double centerx = rcent*cos(fcent);
-    double centery = rcent*sin(fcent);
-
-    param(tanl_) = amsign*(lambda)/radius;
-cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::endl;
-    param(d0_) = amsign*(rcent - radius);
-    param(phi0_) = atan2(-amsign * centerx, amsign * centery);
-
-    Vec3 pos3 = Vec3(pos.x(), pos.y(), pos.z());
-    double fz0 = (pos3 - center).phi() - pos3.z() / lambda;
-    deltaPhi(fz0); //TODO - delta Phi
-    double refphi = fz0+amsign*M_PI_2;
-    double phival = phi0();
-    double dphi = deltaPhi(phival, refphi);
-    param(z0_) = dphi * cosTheta(); //TODO  pos.Z();
+    Vec3 point_on_line = Vec3(pos.X()+mom.X()*pos.Y(),pos.Y(),pos.Z()+mom.Z()*pos.Y());//line point at Y ref
+    double amsign = copysign(1.0, point_on_line.X());
+    param(d0_) = amsign*sqrt(point_on_line.perp2());    
+    param(phi0_) =  atan2(amsign*mom.x(),amsign*mom.y());
+    param(z0_) = pos.Z();
+    param(tanl_) = amsign*tan(lambda);
     param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (sinDip() * CLHEP::c_light * beta());
     cout << "In KTLine. Params set to: " << pars_.parameters() << endl;
 
-    vt_ = CLHEP::c_light * pt / mom.E();
-    vz_ = CLHEP::c_light * mom.z() / mom.E();
-    /*// test position and momentum function
-    Vec4 testpos(pos0);
-    // std::cout << "Testpos " << testpos << std::endl;
-    position(testpos);
-    Mom4 testmom = momentum(testpos.T());
-    auto dp = testpos.Vect() - pos0.Vect();
-    auto dm = testmom.Vect() - mom0.Vect();
-    if(dp.R() > 1.0e-5 || dm.R() > 1.0e-5) throw invalid_argument("Rotation Error");*/
+
   }
 
   double KTLine::deltaPhi(double &phi, double refphi) const
@@ -132,20 +109,13 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
     pos.SetXYZT(pos3.X(), pos3.Y(), pos3.Z(), pos.T());
   }
 
-  /*Vec3 KTLine::position(double time) const {
-    if (forcerange_){
-      range().forceRange(time);
-    }
-    return (pos0() + ((time - t0()) * speed()) * dir());
-  }*/
-
  Vec3 KTLine::position(double time) const
   {
     double cDip = cosDip();
     double l = CLHEP::c_light * beta() * (time - t0()) * cDip;
     double sphi0 = sin(phi0());
     double cphi0 = cos(phi0());
-    return l2g_(Vec3(-d0()*sphi0, d0()*cphi0, z0() + l * tanl()));
+    return l2g_(Vec3(-d0()*sphi0 + cosDip()*l*cosPhi0(), d0()*cphi0 + cosDip()*l*sinPhi0(), z0() + l * tanl()*cosDip()));
   }
 
   Vec4 KTLine::pos4(double time) const {
@@ -184,16 +154,13 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
 
     switch ( mdir ) {
     case LocalBasis::perpdir: // purely polar change theta 1 = theta
-      //return l2g_(Vec3(cosTheta()*sinPhi0(),cosTheta()*cosPhi0(),-1*sinTheta()));
-      return l2g_(Vec3(-1*sinDip()*cosPhi0(),-1*sinDip()*sinPhi0(),cosTheta()));
+      return l2g_(Vec3(-1*sinDip()*cosPhi0(),-1*sinDip()*sinPhi0(),cosDip()));
     break;
       case LocalBasis::phidir: // purely transverse theta2 = -phi()*sin(theta)
-      //return l2g_(Vec3(-cosPhi0(),sinPhi0(),0.0));
       return l2g_(Vec3(-sinPhi0(),cosPhi0(),0.0));
     break;
       case LocalBasis::momdir: // along momentum: check.
-      //return l2g_(Vec3(sinPhi0()*sinTheta(),cosPhi0()*sinTheta(), cosTheta())); 
-      return l2g_(Vec3(cosPhi0(),sinPhi0(), tanl())); 
+      return l2g_(Vec3(cosPhi0()*cosDip(),sinPhi0()*cosDip(), sinDip())); 
     break;
       default:
       throw std::invalid_argument("Invalid direction");
@@ -206,41 +173,6 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
  // compute some useful quantities
    double tanval = cosTheta()/sinTheta();
     double cosval = sinTheta();
-/*    double l = translen(CLHEP::c_light * beta() * (time - t0()));
-    double d0val = d0();
-
-  DVEC pder;
-    // cases
-    switch ( mdir ) {
-      case LocalBasis::perpdir:
-        // polar bending: only momentum and position are unchanged
-        pder[d0_] = d0val;//tanval*(1-cos(omval*l))/omval;
-        pder[phi0_] = 0;//-tanval * sin(omval * l) / (1 + omval * d0val);
-        pder[z0_] = -l/cosDip();//- l - tanval * tanval * sin(omval * l) / (omval * (1 + omval * d0val));
-        pder[tanl_] = 1/(cosDip()*cosDip());
-        pder[t0_] = pder[z0_] / vz() + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;
-        break;
-      case LocalBasis::phidir:
-        // Azimuthal bending: R, Lambda, t0 are unchanged
-        pder[d0_] = -l*sinTheta();//-sin(omval * l) / (omval * cosval);
-        pder[phi0_] = 1/sinTheta();//cos(omval * l) / (cosval * (1 + omval * d0val));
-        pder[z0_] = -pder[d0_]/(sinTheta()*tanTheta());//-tanval / (omval * cosval) * (1 - cos(omval * l) / (1 + omval * d0val));
-        pder[tanl_] = 0;
-        pder[t0_] = pder[z0_] / vz();
-        break;
-      case LocalBasis::momdir:
-        // fractional momentum change: position and direction are unchanged
-        pder[d0_] = 0;
-        pder[phi0_] = 0;
-        pder[z0_] = 0;//-tanval * (l - sin(omval * l) / (omval * (1 + omval * d0val)));
-        pder[tanl_] = 0;
-        pder[t0_] = pder[z0_] / vz();
-        break;
-      default:
-        throw std::invalid_argument("Invalid direction");
-    }
-    return pder;    
-*/
 
 // compute some useful quantities
     //double vz = CLHEP::c_light * mom().z() / mom().E();
@@ -254,16 +186,16 @@ cout<<amsign<<" * "<<rcent<<" - "<<radius<<" = "<<amsign*(rcent - radius)<<std::
       pder[tanl_] = 1/(cosDip()*cosDip());
       pder[d0_] = 0;
       pder[phi0_] = 0;
-      pder[z0_] = -l * cosTheta(); // alt dir =-l*cosTheta();
+      pder[z0_] = -l * (1-tanl()*tanl()); // alt dir =-l*cosTheta();
       pder[t0_] = pder[z0_] / vz_ + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;//pder[z0_] / vz;
       //cout << "Mom deriv perpdir params " << pder << endl;
       break;
     case LocalBasis::phidir:
       // change in dP/dtheta1 = dP/dphi0*(-1/sintheta)
       pder[tanl_] = 0;//GOOD
-      pder[d0_] = -l;                 // alt dir = -l;
+      pder[d0_] = -l/cosDip();       
       pder[phi0_] = 1 / cosDip(); // alt dir = -1/sinTheta(); GOOD
-      pder[z0_] = -d0() / (sinTheta() * tanTheta()); // alt dir = -d0()/(sinTheta()*tanTheta());
+      pder[z0_] = 0;//-d0() / (sinTheta() * tanTheta());
       pder[t0_] = pder[z0_] / vz_;
       //cout << "Mom deriv phidir params " << pder << endl;
       break;
