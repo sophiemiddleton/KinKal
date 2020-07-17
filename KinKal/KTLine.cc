@@ -73,14 +73,13 @@ namespace KinKal {
 
     Vec3 point_on_line = Vec3(pos.X()+mom.X()*pos.Y(),pos.Y(),pos.Z()+mom.Z()*pos.Y());//line point at Y ref
     double amsign = copysign(1.0, point_on_line.X());
-    param(d0_) = amsign*sqrt(point_on_line.perp2());    
-    param(phi0_) =  atan2(amsign*mom.x(),amsign*mom.y());
+    param(d0_) = amsign*(abs(dir_.X()*pos.Y())/sqrt(1+dir_.X()*dir_.X()));   //sqrt(point_on_line.perp2()); 
+       
+    param(phi0_) =  atan2(amsign*dir_.X(),amsign*dir_.Y());
     param(z0_) = pos.Z();
     param(tanl_) = amsign*tan(lambda);
     param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (sinDip() * CLHEP::c_light * beta());
     cout << "In KTLine. Params set to: " << pars_.parameters() << endl;
-
-
   }
 
   double KTLine::deltaPhi(double &phi, double refphi) const
@@ -168,12 +167,10 @@ namespace KinKal {
 
   // derivatives of momentum projected along the given basis WRT the 5 parameters
   KTLine::DVEC KTLine::momDeriv(double time, LocalBasis::LocDir mdir) const {
- // compute some useful quantities
-   double tanval = cosTheta()/sinTheta();
+    // compute some useful quantities
+    double tanval = cosTheta()/sinTheta();
     double cosval = sinTheta();
-
-// compute some useful quantities
-    //double vz = CLHEP::c_light * mom().z() / mom().E();
+    double vz = CLHEP::c_light * mom().z() / mom().E();
     double l = translen(CLHEP::c_light * beta() * (time - t0()));
     KTLine::DVEC pder;
     //cout << "Mom deriv start params " << pder << endl;
@@ -185,7 +182,7 @@ namespace KinKal {
       pder[d0_] = 0;
       pder[phi0_] = 0;
       pder[z0_] = -l * (1-tanl()*tanl()); // alt dir =-l*cosTheta();
-      pder[t0_] = pder[z0_] / vz_ + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;//pder[z0_] / vz;
+      pder[t0_] = pder[z0_] / vz + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;//pder[z0_] / vz;
       //cout << "Mom deriv perpdir params " << pder << endl;
       break;
     case LocalBasis::phidir:
@@ -194,7 +191,7 @@ namespace KinKal {
       pder[d0_] = -l/cosDip();       
       pder[phi0_] = 1 / cosDip(); // alt dir = -1/sinTheta(); GOOD
       pder[z0_] = 0;
-      pder[t0_] = pder[z0_] / vz_;
+      pder[t0_] = pder[z0_] / vz;
       //cout << "Mom deriv phidir params " << pder << endl;
       break;
     case LocalBasis::momdir:
