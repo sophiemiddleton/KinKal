@@ -53,7 +53,6 @@ namespace KinKal {
     static const Vec3 zdir(0.0, 0.0, 1.0);
     double zddot = zdir.Dot(dir_);
     double theta = acos(zddot);
-    param(t0_) = pos0.T() - (pos0.Z() - param(z0_)) / (cosTheta() * CLHEP::c_light * beta());
     double lambda = M_PI_2 - theta;
 
 
@@ -71,12 +70,12 @@ namespace KinKal {
     vt_ = CLHEP::c_light * pt / mom.E();
     vz_ = CLHEP::c_light * mom.z() / mom.E();
 
-    Vec3 point_on_line = Vec3(pos.X()+mom.X()*pos.Y(),pos.Y(),pos.Z()+mom.Z()*pos.Y());//line point at Y ref
-    double amsign = copysign(1.0, point_on_line.X());
-    param(d0_) = amsign*(abs(dir_.X()*pos.Y())/sqrt(1+dir_.X()*dir_.X()));   //sqrt(point_on_line.perp2()); 
-       
+    //Vec3 point_on_line = Vec3(pos.X()+dir.X()*pos.Y(),pos.Y(),pos.Z()+mom.Z()*pos.Y());
+    double amsign = copysign(1.0, pos.X());
+
+    param(d0_) =  pos0.Rho();
     param(phi0_) =  atan2(amsign*dir_.X(),amsign*dir_.Y());
-    param(z0_) = pos.Z();
+    param(z0_) = pos0.Z();
     param(tanl_) = amsign*tan(lambda);
     param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (sinDip() * CLHEP::c_light * beta());
     cout << "In KTLine. Params set to: " << pars_.parameters() << endl;
