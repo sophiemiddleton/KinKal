@@ -72,8 +72,8 @@ namespace KinKal {
 
     //Vec3 point_on_line = Vec3(pos.X()+dir.X()*pos.Y(),pos.Y(),pos.Z()+mom.Z()*pos.Y());
     double amsign = copysign(1.0, pos.X());
-
-    param(d0_) =  pos0.Rho();
+    double d = abs((0-pos0.x())*dir_.x()+(0-pos0.y())*dir_.y()+(1-pos0.z())*dir_.z());
+    param(d0_) =  d;//pos0.Rho();
     param(phi0_) =  atan2(amsign*dir_.X(),amsign*dir_.Y());
     param(z0_) = pos0.Z();
     param(tanl_) = amsign*tan(lambda);
