@@ -6,6 +6,7 @@
 #include "KinKal/KTLine.hh"
 #include "KinKal/BField.hh"
 #include "Math/AxisAngle.h"
+#include "KinKal/POCAUtil.hh"
 #include <math.h>
 #include <stdexcept>
 
@@ -70,13 +71,15 @@ namespace KinKal {
     vt_ = CLHEP::c_light * pt / mom.E();
     vz_ = CLHEP::c_light * mom.z() / mom.E();
 
-    //Vec3 point_on_line = Vec3(pos.X()+dir.X()*pos.Y(),pos.Y(),pos.Z()+mom.Z()*pos.Y());
-    double amsign = copysign(1.0, pos.X());
-    double d = abs((0-pos0.x())*dir_.x()+(0-pos0.y())*dir_.y()+(1-pos0.z())*dir_.z());
-    param(d0_) =  d;//pos0.Rho();
-    param(phi0_) =  atan2(amsign*dir_.X(),amsign*dir_.Y());
+    static const Vec3 zpos(0.0, 0.0, 0.0);
+    const Vec3 pos3(pos0.x(), pos0.y(), pos0.z());
+    POCAUtil *poca = new POCAUtil(pos3, dir_, zpos, zdir);
+    Vec3 const& p = poca->point1(); 
+    amsign_ = copysign(1.0, p.X());
+    param(d0_) = amsign_*poca->dca();
+    param(phi0_) =  atan2(amsign_*dir_.X(),amsign_*dir_.Y());
     param(z0_) = pos0.Z();
-    param(tanl_) = amsign*tan(lambda);
+    param(tanl_) = amsign_*tan(lambda);
     param(t0_) = pos.T() - (pos.Z() - param(z0_)) / (sinDip() * CLHEP::c_light * beta());
     cout << "In KTLine. Params set to: " << pars_.parameters() << endl;
   }
@@ -180,15 +183,14 @@ namespace KinKal {
       pder[tanl_] = 1/(cosDip()*cosDip());
       pder[d0_] = 0;
       pder[phi0_] = 0;
-      pder[z0_] = -l * (1-tanl()*tanl()); // alt dir =-l*cosTheta();
-      pder[t0_] = pder[z0_] / vz + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;//pder[z0_] / vz;
-      //cout << "Mom deriv perpdir params " << pder << endl;
+      pder[z0_] = -l * (1-tanl()*tanl()); 
+      pder[t0_] = pder[z0_] / vz + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;
       break;
     case LocalBasis::phidir:
       // change in dP/dtheta1 = dP/dphi0*(-1/sintheta)
-      pder[tanl_] = 0;//GOOD
-      pder[d0_] = -l/cosDip();       
-      pder[phi0_] = 1 / cosDip(); // alt dir = -1/sinTheta(); GOOD
+      pder[tanl_] = 0;
+      pder[d0_] = l/cosDip();       
+      pder[phi0_] = -1 / cosDip(); 
       pder[z0_] = 0;
       pder[t0_] = pder[z0_] / vz;
       //cout << "Mom deriv phidir params " << pder << endl;

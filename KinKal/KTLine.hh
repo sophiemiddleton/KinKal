@@ -168,7 +168,7 @@ class KTLine {
     static std::vector<std::string> paramTitles_;
     static std::vector<std::string> paramNames_;
     static std::vector<std::string> paramUnits_;
-
+    double amsign_;
     // nonconst accessors
     double &param(size_t index) { return pars_.parameters()[index]; }
   };
