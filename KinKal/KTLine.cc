@@ -180,17 +180,17 @@ namespace KinKal {
     switch (mdir) {
     case LocalBasis::perpdir:
       // polar bending: change in Theta
-      pder[tanl_] = 1/(cosDip()*cosDip());
+      pder[tanl_] = 1/(cosval*cosval);
       pder[d0_] = 0;
       pder[phi0_] = 0;
-      pder[z0_] = -l * (1-tanl()*tanl()); 
+      pder[z0_] = l * (-1-tanval*tanval); 
       pder[t0_] = pder[z0_] / vz + pder[tanl_] * (time - t0()) * cosval * cosval / tanval;
       break;
     case LocalBasis::phidir:
       // change in dP/dtheta1 = dP/dphi0*(-1/sintheta)
       pder[tanl_] = 0;
-      pder[d0_] = l/cosDip();       
-      pder[phi0_] = -1 / cosDip(); 
+      pder[d0_] = -l/cosval;       
+      pder[phi0_] = 1 / cosval; 
       pder[z0_] = 0;
       pder[t0_] = pder[z0_] / vz;
       //cout << "Mom deriv phidir params " << pder << endl;

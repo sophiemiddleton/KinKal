@@ -59,21 +59,27 @@ namespace KinKal {
     Vec3 ddir;
     ddir = delta().Vect().Unit();// direction vector along D(POCA) from traj 2 to 1 (line to ktline)
     ktline.direction(particlePoca().T());
-double l = CLHEP::c_light * ktline.beta() * (particlePoca().T() - ktline.t0());
-      //calculated these using BTrk instances - doc db ref ###
-      dDdP_[KTLine::phi0_] = -dsign*(ktline.cosDip()*l*ktline.sinPhi0() - ktline.d0()*ktline.cosPhi0())*ddir.x()+(ktline.cosDip()*l*ktline.cosPhi0()-ktline.d0()*ktline.sinPhi0())*ddir.y();
-      dDdP_[KTLine::tanl_] = -dsign*l;
-      dDdP_[KTLine::d0_] = -dsign*(-1*ktline.sinPhi0()*ddir.x()+ktline.cosPhi0()*ddir.y());
-      dDdP_[KTLine::z0_] = -dsign*ddir.z();
-      // no spatial dependence, DT is purely temporal
-      dTdP_[KTLine::t0_] = -1.0; // time is 100% correlated
+    double l = CLHEP::c_light * ktline.beta() * (particlePoca().T() - ktline.t0());
 
-      // propagate parameter covariance to variance on doca and toca
-      docavar_ = ROOT::Math::Similarity(dDdP(),ktline.params().covariance());
-      tocavar_ = ROOT::Math::Similarity(dTdP(),ktline.params().covariance());
-      // dot product between directions at POCA
-  
-      ddot_ = ktline.direction(particleToca()).Dot(tline.direction(sensorToca()));
+    double d0 = ktline.d0();
+    double cosval = ktline.cosDip();
+    double cosPhi0 = ktline.cosPhi0();
+    double sinPhi0 = ktline.sinPhi0();
+
+    //calculated these using BTrk instances - doc db ref ###
+    dDdP_[KTLine::phi0_] = -dsign*(cosval*l*sinPhi0 - d0*cosPhi0)*ddir.x()+(cosval*l*cosPhi0-d0*sinPhi0)*ddir.y();
+    dDdP_[KTLine::tanl_] = -dsign*l;
+    dDdP_[KTLine::d0_] = -dsign*(-1*ktline.sinPhi0()*ddir.x()+cosPhi0*ddir.y());
+    dDdP_[KTLine::z0_] = -dsign*ddir.z();
+    // no spatial dependence, DT is purely temporal
+    dTdP_[KTLine::t0_] = -1.0; // time is 100% correlated
+
+    // propagate parameter covariance to variance on doca and toca
+    docavar_ = ROOT::Math::Similarity(dDdP(),ktline.params().covariance());
+    tocavar_ = ROOT::Math::Similarity(dTdP(),ktline.params().covariance());
+    // dot product between directions at POCA
+
+    ddot_ = ktline.direction(particleToca()).Dot(tline.direction(sensorToca()));
 
     }
   
